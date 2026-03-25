@@ -28,7 +28,7 @@ enum APIError: Error, LocalizedError {
 class APIService {
     static let shared = APIService()
 
-    private let baseURL = "https://progression-be.fly.dev/api/v1"
+    private let baseURL = "http://13.214.26.96/api/progression/api/v1"
 
     var authToken: String?
 
