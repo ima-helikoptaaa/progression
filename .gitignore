@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Firebase credentials
+firebase-service-account.json
+GoogleService-Info.plist
+
+# Prisma
+*.db
+
+# Xcode
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Logs
+*.log
+npm-debug.log*
+
+# Claude Code
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Screenshots and loose images
+*.png
+*.jpg
+!**/Assets.xcassets/**
+
+# Coverage
+coverage/

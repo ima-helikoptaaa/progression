@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  firebaseUid     String   @unique @map("firebase_uid") @db.VarChar(128)
+  email           String   @db.VarChar(255)
+  displayName     String?  @map("display_name") @db.VarChar(255)
+  photoUrl        String?  @map("photo_url") @db.VarChar(1024)
+  timezone        String   @default("UTC") @db.VarChar(64)
+  totalPoints     Int      @default(0) @map("total_points")
+  lifetimePoints  Int      @default(0) @map("lifetime_points")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  activities        Activity[]
+  pointTransactions PointTransaction[]
+  identities        Identity[]
+  habitStacks       HabitStack[]
+
+  @@map("users")
+}
+
+model Activity {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  name              String    @db.VarChar(255)
+  emoji             String    @default("⭐") @db.VarChar(10)
+  unit              String    @default("Minutes") @db.VarChar(50)
+  baseTarget        Float     @default(1.0) @map("base_target")
+  currentTarget     Float     @default(1.0) @map("current_target")
+  stepSize          Float     @default(1.0) @map("step_size")
+  currentStreak     Int       @default(0) @map("current_streak")
+  bestStreak        Int       @default(0) @map("best_streak")
+  lastCompletedDate DateTime? @map("last_completed_date") @db.Date
+  isActive          Boolean   @default(true) @map("is_active")
+  isPaused          Boolean   @default(false) @map("is_paused")
+  colorHex          String    @default("#6C5CE7") @map("color_hex") @db.VarChar(7)
+  sortOrder         Int       @default(0) @map("sort_order")
+  identityId        String?   @map("identity_id") @db.Uuid
+  stackId           String?   @map("stack_id") @db.Uuid
+  stackOrder        Int       @default(0) @map("stack_order")
+  cueTime           String?   @map("cue_time") @db.VarChar(50)
+  cueLocation       String?   @map("cue_location") @db.VarChar(100)
+  trackingMode      String    @default("continuous") @map("tracking_mode") @db.VarChar(20)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user            User           @relation(fields: [userId], references: [id])
+  identity        Identity?      @relation(fields: [identityId], references: [id])
+  stack           HabitStack?    @relation(fields: [stackId], references: [id])
+  logs            ActivityLog[]
+  streakHistories StreakHistory[]
+
+  @@index([userId])
+  @@index([identityId])
+  @@index([stackId])
+  @@map("activities")
+}
+
+model ActivityLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  activityId      String   @map("activity_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  completedDate   DateTime @map("completed_date") @db.Date
+  value           Float
+  targetAtTime    Float    @map("target_at_time")
+  streakAtTime    Int      @map("streak_at_time")
+  earnedPoint     Boolean  @default(false) @map("earned_point")
+  completionCount Int      @default(1) @map("completion_count")
+  notes           String?  @db.VarChar(500)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  activity Activity @relation(fields: [activityId], references: [id])
+
+  @@unique([activityId, completedDate], name: "uq_activity_completed_date")
+  @@index([activityId])
+  @@index([userId])
+  @@map("activity_logs")
+}
+
+model PointTransaction {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  amount          Int
+  transactionType String   @map("transaction_type") @db.VarChar(50)
+  activityId      String?  @map("activity_id") @db.Uuid
+  description     String   @db.VarChar(255)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("point_transactions")
+}
+
+model StreakHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  activityId  String   @map("activity_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(50)
+  streakValue Int      @map("streak_value")
+  targetValue Float    @map("target_value")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  activity Activity @relation(fields: [activityId], references: [id])
+
+  @@index([activityId])
+  @@index([userId])
+  @@map("streak_history")
+}
+
+model Identity {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String   @db.VarChar(100)
+  emoji     String   @default("🎯") @db.VarChar(10)
+  colorHex  String   @default("#6C5CE7") @map("color_hex") @db.VarChar(7)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user       User       @relation(fields: [userId], references: [id])
+  activities Activity[]
+
+  @@index([userId])
+  @@map("identities")
+}
+
+model HabitStack {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String   @db.VarChar(100)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User       @relation(fields: [userId], references: [id])
+  activities Activity[]
+
+  @@index([userId])
+  @@map("habit_stacks")
+}
