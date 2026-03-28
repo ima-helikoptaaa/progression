@@ -9,6 +9,7 @@ export function isFibonacciDay(streak: number): boolean {
 }
 
 export function previousFibonacci(streak: number): number {
+  if (streak <= 1) return 0;
   let prev = 0;
   for (const f of FIBONACCI_CHECKPOINTS) {
     if (f < streak) {
@@ -18,6 +19,20 @@ export function previousFibonacci(streak: number): number {
     }
   }
   return prev;
+}
+
+/**
+ * Get the Fibonacci number at a given index (0-based).
+ * Used for cascading activity costs: index 0=0, 1=1, 2=1, 3=2, 4=3, 5=5...
+ */
+export function fibonacciAt(n: number): number {
+  if (n <= 0) return 0;
+  if (n === 1) return 1;
+  let a = 0, b = 1;
+  for (let i = 2; i <= n; i++) {
+    [a, b] = [b, a + b];
+  }
+  return b;
 }
 
 export function nextFibonacci(streak: number): number {

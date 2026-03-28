@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { fibonacciAt } from '../common/utils/fibonacci';
 
 @Injectable()
 export class PointsService {
@@ -81,37 +82,56 @@ export class PointsService {
     };
   }
 
-  async spendOnNewActivity(userId: string) {
+  /**
+   * Get the Fibonacci cost for adding the Nth activity (0-indexed existing count).
+   * 1st activity = free (0), 2nd = 1, 3rd = 2, 4th = 3, 5th = 5, 6th = 8...
+   * This uses fibonacciAt(existingCount) where existingCount is the current number of active activities.
+   */
+  getActivityCost(existingActiveCount: number): number {
+    if (existingActiveCount <= 0) return 0;
+    return fibonacciAt(existingActiveCount);
+  }
+
+  async spendOnNewActivity(userId: string, existingActiveCount: number) {
+    const cost = this.getActivityCost(existingActiveCount);
+    if (cost === 0) return;
+
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
     });
-    if (user.totalPoints < 1) {
-      throw new BadRequestException('Not enough points');
+    if (user.totalPoints < cost) {
+      throw new BadRequestException(
+        `Not enough points. Need ${cost}, have ${user.totalPoints}`,
+      );
     }
 
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
-        data: { totalPoints: { decrement: 1 } },
+        data: { totalPoints: { decrement: cost } },
       }),
       this.prisma.pointTransaction.create({
         data: {
           userId,
-          amount: -1,
+          amount: -cost,
           transactionType: 'new_activity',
-          description: 'Spent point to add new activity',
+          description: `Spent ${cost} point(s) to add activity #${existingActiveCount + 1}`,
         },
       }),
     ]);
   }
 
   async checkCanCreate(userId: string) {
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-    });
-    if (user.totalPoints < 1) {
-      throw new BadRequestException('Not enough points');
+    const [user, existingCount] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
+      this.prisma.activity.count({ where: { userId, isActive: true } }),
+    ]);
+    const cost = this.getActivityCost(existingCount);
+    if (cost > 0 && user.totalPoints < cost) {
+      throw new BadRequestException(
+        `Not enough points. Need ${cost}, have ${user.totalPoints}`,
+      );
     }
-    return { canCreate: true, remainingPoints: user.totalPoints };
+    return { canCreate: true, remainingPoints: user.totalPoints, cost };
   }
 }

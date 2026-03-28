@@ -82,6 +82,7 @@ model ActivityLog {
   @@unique([activityId, completedDate], name: "uq_activity_completed_date")
   @@index([activityId])
   @@index([userId])
+  @@index([userId, completedDate])
   @@map("activity_logs")
 }
 

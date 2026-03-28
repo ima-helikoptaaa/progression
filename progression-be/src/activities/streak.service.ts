@@ -25,7 +25,6 @@ export class StreakService {
     });
 
     const penalties: any[] = [];
-    const updates: Promise<any>[] = [];
 
     for (const activity of activities) {
       if (!activity.lastCompletedDate) continue;
@@ -43,7 +42,9 @@ export class StreakService {
       const oldStreak = activity.currentStreak;
       let newStreak = oldStreak;
       for (let i = 0; i < missed && newStreak > 0; i++) {
-        newStreak = previousFibonacci(newStreak);
+        const prev = previousFibonacci(newStreak);
+        // Ensure we always decrease by at least 1 to avoid infinite loops
+        newStreak = prev < newStreak ? prev : Math.max(0, newStreak - 1);
       }
 
       const oldTarget = activity.currentTarget;
@@ -61,34 +62,32 @@ export class StreakService {
         oldTarget,
         newTarget,
       });
-
-      // Set lastCompletedDate to yesterday to make this idempotent
-      updates.push(
-        this.prisma.activity.update({
-          where: { id: activity.id },
-          data: {
-            currentStreak: newStreak,
-            currentTarget: newTarget,
-            lastCompletedDate: yesterday,
-          },
-        }),
-      );
-
-      updates.push(
-        this.prisma.streakHistory.create({
-          data: {
-            activityId: activity.id,
-            userId,
-            eventType: 'penalty',
-            streakValue: newStreak,
-            targetValue: newTarget,
-          },
-        }),
-      );
     }
 
-    if (updates.length > 0) {
-      await Promise.all(updates);
+    // Apply all penalties in a single transaction
+    if (penalties.length > 0) {
+      await this.prisma.$transaction(
+        penalties.flatMap((p) => [
+          this.prisma.activity.update({
+            where: { id: p.activityId },
+            data: {
+              currentStreak: p.newStreak,
+              currentTarget: p.newTarget,
+              // Set lastCompletedDate to yesterday to make this idempotent
+              lastCompletedDate: yesterday,
+            },
+          }),
+          this.prisma.streakHistory.create({
+            data: {
+              activityId: p.activityId,
+              userId,
+              eventType: 'penalty',
+              streakValue: p.newStreak,
+              targetValue: p.newTarget,
+            },
+          }),
+        ]),
+      );
     }
 
     return penalties;

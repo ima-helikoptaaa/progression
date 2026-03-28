@@ -11,22 +11,28 @@ export class ActivitiesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listActivities(userId: string, timezone = 'UTC') {
+    const today = getUserToday(timezone);
+
     const activities = await this.prisma.activity.findMany({
       where: { userId, isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        logs: {
+          where: { completedDate: today },
+          select: { activityId: true, value: true },
+          take: 1,
+        },
+      },
     });
 
-    const today = getUserToday(timezone);
-
-    const todayLogs = await this.prisma.activityLog.findMany({
-      where: { userId, completedDate: today },
-      select: { activityId: true, value: true },
+    return activities.map((a) => {
+      const todayLog = a.logs[0];
+      const logMap = todayLog
+        ? new Map([[todayLog.activityId, { value: todayLog.value }]])
+        : new Map();
+      const { logs, ...activity } = a;
+      return this.buildActivityResponse(activity, today, logMap);
     });
-    const logMap = new Map(
-      todayLogs.map((l) => [l.activityId, { value: l.value }]),
-    );
-
-    return activities.map((a) => this.buildActivityResponse(a, today, logMap));
   }
 
   async createActivity(
@@ -87,21 +93,26 @@ export class ActivitiesService {
     if (data.cueLocation !== undefined) updateData.cueLocation = data.cueLocation;
     if (data.trackingMode !== undefined) updateData.trackingMode = data.trackingMode;
 
+    const today = getUserToday(timezone);
+
     const updated = await this.prisma.activity.update({
       where: { id: activityId },
       data: updateData,
+      include: {
+        logs: {
+          where: { completedDate: today },
+          select: { activityId: true, value: true },
+          take: 1,
+        },
+      },
     });
 
-    const today = getUserToday(timezone);
-    const todayLogs = await this.prisma.activityLog.findMany({
-      where: { userId, completedDate: today },
-      select: { activityId: true, value: true },
-    });
-    const logMap = new Map(
-      todayLogs.map((l) => [l.activityId, { value: l.value }]),
-    );
-
-    return this.buildActivityResponse(updated, today, logMap);
+    const todayLog = updated.logs[0];
+    const logMap = todayLog
+      ? new Map([[todayLog.activityId, { value: todayLog.value }]])
+      : new Map();
+    const { logs, ...activityData } = updated;
+    return this.buildActivityResponse(activityData, today, logMap);
   }
 
   async deleteActivity(userId: string, activityId: string) {

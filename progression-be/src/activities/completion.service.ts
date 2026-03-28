@@ -14,19 +14,24 @@ export class CompletionService {
   async completeActivity(
     userId: string,
     activityId: string,
-    value: number,
+    value: number | undefined,
     timezone: string,
     notes?: string,
   ) {
-    if (value <= 0) {
-      throw new BadRequestException('Value must be greater than 0');
-    }
-
     const activity = await this.prisma.activity.findFirst({
       where: { id: activityId, userId, isActive: true },
     });
     if (!activity) throw new BadRequestException('Activity not found');
     if (activity.isPaused) throw new BadRequestException('Activity is paused');
+
+    // Default to current target if no value provided
+    if (value === undefined) {
+      value = activity.currentTarget;
+    }
+
+    if (value <= 0) {
+      throw new BadRequestException('Value must be greater than 0');
+    }
 
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },

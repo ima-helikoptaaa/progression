@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timingSafeEqual } from 'crypto';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -19,7 +20,12 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException('Agent API key not configured');
     }
 
-    if (!apiKey || apiKey !== expectedKey) {
+    if (
+      !apiKey ||
+      typeof apiKey !== 'string' ||
+      apiKey.length !== expectedKey.length ||
+      !timingSafeEqual(Buffer.from(apiKey), Buffer.from(expectedKey))
+    ) {
       throw new UnauthorizedException('Invalid API key');
     }
 

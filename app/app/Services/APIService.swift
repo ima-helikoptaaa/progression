@@ -28,7 +28,11 @@ enum APIError: Error, LocalizedError {
 class APIService {
     static let shared = APIService()
 
+    #if DEBUG
     private let baseURL = "http://13.214.26.96/api/progression/api/v1"
+    #else
+    private let baseURL = "https://13.214.26.96/api/progression/api/v1"
+    #endif
 
     var authToken: String?
 
@@ -261,4 +265,5 @@ struct SpendResponse: Codable {
     var newTarget: Double?
     var remainingPoints: Int?
     var canCreate: Bool?
+    var cost: Int?
 }

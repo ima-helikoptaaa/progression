@@ -9,17 +9,16 @@ class AuthService {
     var currentUser: UserResponse?
     var errorMessage: String?
 
-    // TODO: Set to false once Firebase & GoogleSignIn SPM packages are added
     private let devMode = false
-
     private let api = APIService.shared
+    private let tokenKey = "auth_token"
 
     init() {
         if devMode {
             authState = .unauthenticated
             return
         }
-        if let token = UserDefaults.standard.string(forKey: "auth_token") {
+        if let token = KeychainHelper.read(key: tokenKey) {
             api.authToken = token
             Task { await restoreSession() }
         } else {
@@ -46,13 +45,6 @@ class AuthService {
             return
         }
 
-        // NOTE: Once you add the Firebase & GoogleSignIn SPM packages:
-        // 1. Add these imports at the top of the file:
-        //    import GoogleSignIn
-        //    import FirebaseAuth
-        // 2. Set devMode = false
-        // 3. Uncomment the block below and remove the stub above
-
         do {
             guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                   let root = windowScene.windows.first?.rootViewController else {
@@ -78,7 +70,7 @@ class AuthService {
 
             api.authToken = firebaseIdToken
             let user = try await api.login(idToken: firebaseIdToken)
-            UserDefaults.standard.set(firebaseIdToken, forKey: "auth_token")
+            KeychainHelper.save(key: tokenKey, value: firebaseIdToken)
             currentUser = user
 
             let activities = try await api.listActivities()
@@ -97,13 +89,26 @@ class AuthService {
 
     @MainActor
     func signOut() {
-        // When Firebase is added, also call:
-        // GIDSignIn.sharedInstance.signOut()
-        // try? Auth.auth().signOut()
-        UserDefaults.standard.removeObject(forKey: "auth_token")
+        GIDSignIn.sharedInstance.signOut()
+        try? Auth.auth().signOut()
+        KeychainHelper.delete(key: tokenKey)
         api.authToken = nil
         currentUser = nil
         authState = .unauthenticated
+    }
+
+    /// Refresh the Firebase ID token and update the stored token
+    @MainActor
+    func refreshToken() async -> Bool {
+        guard let firebaseUser = Auth.auth().currentUser else { return false }
+        do {
+            let newToken = try await firebaseUser.getIDToken(forcingRefresh: true)
+            api.authToken = newToken
+            KeychainHelper.save(key: tokenKey, value: newToken)
+            return true
+        } catch {
+            return false
+        }
     }
 
     @MainActor
@@ -112,6 +117,16 @@ class AuthService {
             let user = try await api.getMe()
             currentUser = user
             authState = .authenticated
+        } catch let error as APIError {
+            if case .tokenExpired = error, await refreshToken() {
+                // Retry with fresh token
+                if let user = try? await api.getMe() {
+                    currentUser = user
+                    authState = .authenticated
+                    return
+                }
+            }
+            signOut()
         } catch {
             signOut()
         }

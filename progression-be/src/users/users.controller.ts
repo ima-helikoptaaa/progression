@@ -9,7 +9,7 @@ export class UsersController {
 
   @Get('me')
   async getMe(@CurrentUser() user: User) {
-    return user;
+    return this.usersService.getMe(user.id);
   }
 
   @Put('me')

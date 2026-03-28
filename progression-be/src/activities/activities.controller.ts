@@ -86,9 +86,8 @@ export class ActivitiesController {
     const existingCount = await this.activitiesService.countActiveActivities(
       user.id,
     );
-    if (existingCount > 0) {
-      await this.pointsService.spendOnNewActivity(user.id);
-    }
+    // Fibonacci cascading cost: 1st free, 2nd=1pt, 3rd=2pt, 4th=3pt, 5th=5pt...
+    await this.pointsService.spendOnNewActivity(user.id, existingCount);
 
     return this.activitiesService.createActivity(user.id, {
       name: body.name.trim(),
@@ -169,17 +168,10 @@ export class ActivitiesController {
     @Param('id') id: string,
     @Body() body: { value?: number; notes?: string },
   ) {
-    // If no value provided, look up the activity's current target
-    let value: number = body.value ?? 0;
-    if (!body.value) {
-      const activities = await this.activitiesService.listActivities(user.id, user.timezone);
-      const activity = activities.find((a: any) => a.id === id);
-      value = activity?.currentTarget ?? 1;
-    }
     return this.completionService.completeActivity(
       user.id,
       id,
-      value,
+      body.value ?? undefined,
       user.timezone,
       body.notes,
     );

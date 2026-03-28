@@ -48,9 +48,35 @@ class NewActivityViewModel {
         return unit
     }
 
+    /// Calculate the Fibonacci cost for adding activity at position (existingCount + 1)
+    /// 1st free, 2nd=1, 3rd=2, 4th=3, 5th=5, 6th=8...
+    func activityCost(existingCount: Int) -> Int {
+        if existingCount <= 0 { return 0 }
+        return fibonacci(existingCount)
+    }
+
+    private func fibonacci(_ n: Int) -> Int {
+        if n <= 0 { return 0 }
+        if n == 1 { return 1 }
+        var a = 0, b = 1
+        for _ in 2...n {
+            let temp = a + b
+            a = b
+            b = temp
+        }
+        return b
+    }
+
     @MainActor
     func createActivity(userPoints: Int, existingCount: Int) async -> Bool {
         guard isValid else { return false }
+
+        let cost = activityCost(existingCount: existingCount)
+        if cost > userPoints {
+            errorMessage = "Not enough points. Need \(cost), have \(userPoints)."
+            return false
+        }
+
         isCreating = true
         do {
             let body = ActivityCreate(
