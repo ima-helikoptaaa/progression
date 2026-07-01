@@ -401,5 +401,7 @@ struct StatsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .appleCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title): \(value)")
     }
 }

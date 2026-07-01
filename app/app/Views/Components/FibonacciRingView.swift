@@ -107,6 +107,9 @@ struct FibonacciRingView: View {
                 }
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isCompleted ? "Streak \(streak), completed" : "Streak: \(streak) days")
+        .accessibilityValue("Progress \(Int(progress * 100)) percent to next milestone")
     }
 }
 

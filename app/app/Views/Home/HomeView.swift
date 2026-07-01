@@ -42,13 +42,15 @@ struct HomeView: View {
                     // Loading
                     if viewModel.isLoading {
                         Section {
-                            ProgressView()
-                                .tint(Theme.Colors.primary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 40)
+                            ForEach(0..<4, id: \.self) { _ in
+                                ShimmerCardPlaceholder()
+                                    .frame(height: 90)
+                                    .padding(.horizontal, 2)
+                                    .padding(.vertical, 4)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                            }
                         }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
                     }
                 }
                 .listStyle(.plain)
@@ -80,6 +82,8 @@ struct HomeView: View {
                                 .clipShape(Circle())
                                 .shadow(color: Theme.Colors.primary.opacity(0.35), radius: 10, y: 5)
                         }
+                        .accessibilityLabel("New activity")
+                        .accessibilityHint("Double tap to create a new habit")
                     }
                     .padding()
                 }
@@ -328,7 +332,24 @@ struct HomeView: View {
 
     @ViewBuilder
     private var standardContent: some View {
-        if !viewModel.pendingActivities.isEmpty {
+        if viewModel.pendingActivities.isEmpty && viewModel.completedActivities.isEmpty && viewModel.pausedActivities.isEmpty {
+            Section {
+                VStack(spacing: 12) {
+                    Text("🦊")
+                        .font(.system(size: 48))
+                    Text("No activities yet")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    Text("Tap the + button to create your first habit")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 60)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+        } else if !viewModel.pendingActivities.isEmpty {
             Section {
                 HStack {
                     Text("TO DO")

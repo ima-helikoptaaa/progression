@@ -144,6 +144,7 @@ struct IdentityTabView: View {
                         .font(.title3)
                         .foregroundStyle(Theme.Colors.primary.opacity(0.6))
                 }
+                .accessibilityLabel("Edit \(identity.name)")
 
                 Button {
                     viewModel.identityToDelete = identity
@@ -153,6 +154,7 @@ struct IdentityTabView: View {
                         .font(.title3)
                         .foregroundStyle(Theme.Colors.danger.opacity(0.6))
                 }
+                .accessibilityLabel("Delete \(identity.name)")
             }
             .padding(Theme.Layout.cardPadding)
             .appleCard()

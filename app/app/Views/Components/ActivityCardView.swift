@@ -135,7 +135,12 @@ struct ActivityCardView: View {
             .contentShape(Rectangle())
             .onTapGesture { onTap() }
             .opacity(activity.isPaused ? 0.45 : (activity.completedToday && !isOverflow ? 0.75 : 1))
-        }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(activity.emoji) \(activity.name), \(progressLabel)")
+            .accessibilityValue(activity.completedToday ? "Completed" : (activity.isPaused ? "Paused" : percentageText))
+            .accessibilityHint("Double tap to view details")
+            .accessibilityAddTraits(.isButton)
+    }
     }
 
     // MARK: - Top Section
@@ -206,6 +211,8 @@ struct ActivityCardView: View {
                     )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Add one \(activity.unit)")
+            .accessibilityHint("Double tap to log progress")
         } else {
             // Checkmark button
             Button {
@@ -231,6 +238,8 @@ struct ActivityCardView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(activity.completedToday ? "Completed" : "Mark complete")
+            .accessibilityHint("Double tap to \(activity.completedToday ? "log more" : "complete") this activity")
         }
     }
 

@@ -13,19 +13,19 @@ struct ProgressionApp: App {
             clientID: "103377356088-0ld1h153ilv360je2ch7a367gksel3sd.apps.googleusercontent.com"
         )
 
-        // Configure tab bar appearance for warm theme
+        // Configure tab bar appearance for warm theme (adaptive)
         let tabAppearance = UITabBarAppearance()
         tabAppearance.configureWithOpaqueBackground()
-        tabAppearance.backgroundColor = UIColor(Color(hex: "FFF8F0"))
+        tabAppearance.backgroundColor = UIColor(Theme.Colors.background)
         UITabBar.appearance().standardAppearance = tabAppearance
         UITabBar.appearance().scrollEdgeAppearance = tabAppearance
 
-        // Configure navigation bar for warm theme
+        // Configure navigation bar for warm theme (adaptive)
         let navAppearance = UINavigationBarAppearance()
         navAppearance.configureWithOpaqueBackground()
-        navAppearance.backgroundColor = UIColor(Color(hex: "FFF8F0"))
-        navAppearance.titleTextAttributes = [.foregroundColor: UIColor(Color(hex: "2D1B00"))]
-        navAppearance.largeTitleTextAttributes = [.foregroundColor: UIColor(Color(hex: "2D1B00"))]
+        navAppearance.backgroundColor = UIColor(Theme.Colors.background)
+        navAppearance.titleTextAttributes = [.foregroundColor: UIColor(Theme.Colors.textPrimary)]
+        navAppearance.largeTitleTextAttributes = [.foregroundColor: UIColor(Theme.Colors.textPrimary)]
         UINavigationBar.appearance().standardAppearance = navAppearance
         UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
     }
@@ -35,7 +35,6 @@ struct ProgressionApp: App {
             RootView()
                 .environment(authService)
                 .environment(appState)
-                .preferredColorScheme(.light)
         }
     }
 }

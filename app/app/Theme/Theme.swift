@@ -10,19 +10,19 @@ enum Theme {
         static let warning = Color(hex: "FF9800")
         static let danger = Color(hex: "EF5350")
 
-        // Warm text hierarchy
-        static let textPrimary = Color(hex: "2D1B00")
-        static let textSecondary = Color(hex: "7A6652")
-        static let textTertiary = Color(hex: "BDA88E")
+        // Warm text hierarchy (adaptive for dark mode)
+        static let textPrimary = Color(adaptiveLight: "2D1B00", dark: "F5E6D3")
+        static let textSecondary = Color(adaptiveLight: "7A6652", dark: "B8A088")
+        static let textTertiary = Color(adaptiveLight: "BDA88E", dark: "8A7560")
 
-        // Warm backgrounds
-        static let background = Color(hex: "FFF8F0")
-        static let card = Color.white
-        static let cardBorder = Color(hex: "FFE8D6")
+        // Warm backgrounds (adaptive for dark mode)
+        static let background = Color(adaptiveLight: "FFF8F0", dark: "1A1208")
+        static let card = Color(adaptiveLight: "FFFFFF", dark: "2A1F14")
+        static let cardBorder = Color(adaptiveLight: "FFE8D6", dark: "3D2E1E")
 
         // Fox mascot accent
         static let foxOrange = Color(hex: "FF6B35")
-        static let foxCream = Color(hex: "FFF3E0")
+        static let foxCream = Color(adaptiveLight: "FFF3E0", dark: "2A1F14")
 
         // Curated activity color palette (6 warm-toned colors)
         static let activityColors: [String] = [
@@ -104,5 +104,12 @@ extension Color {
             blue: Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+
+    init(adaptiveLight: String, dark: String) {
+        self.init(UIColor { traitCollection in
+            let hex = traitCollection.userInterfaceStyle == .dark ? dark : adaptiveLight
+            return UIColor(Color(hex: hex))
+        })
     }
 }
