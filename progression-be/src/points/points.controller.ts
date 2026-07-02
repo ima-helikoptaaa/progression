@@ -27,7 +27,11 @@ export class PointsController {
       if (!body.activity_id) {
         throw new BadRequestException('activity_id required for upgrade');
       }
-      return this.pointsService.spendOnUpgrade(user.id, body.activity_id, body.new_target);
+      return this.pointsService.spendOnUpgrade(
+        user.id,
+        body.activity_id,
+        body.new_target,
+      );
     } else if (body.action === 'new_activity') {
       return this.pointsService.checkCanCreate(user.id);
     }

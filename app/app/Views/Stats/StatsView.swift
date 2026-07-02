@@ -163,29 +163,39 @@ struct StatsView: View {
                                     .font(.system(size: 14))
                             }
 
-                            // Day labels + grid
-                            HStack(alignment: .top, spacing: 4) {
-                                // Day labels
-                                VStack(spacing: 3) {
-                                    Text("").frame(height: 16) // spacer for month row
-                                    Text("M").font(.system(size: 9)).foregroundStyle(Theme.Colors.textTertiary).frame(height: 16)
-                                    Text("").frame(height: 16)
-                                    Text("W").font(.system(size: 9)).foregroundStyle(Theme.Colors.textTertiary).frame(height: 16)
-                                    Text("").frame(height: 16)
-                                    Text("F").font(.system(size: 9)).foregroundStyle(Theme.Colors.textTertiary).frame(height: 16)
-                                    Text("").frame(height: 16)
+                            // Day headers
+                            HStack(spacing: 3) {
+                                ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { day in
+                                    Text(day)
+                                        .font(.system(size: 9, weight: .medium))
+                                        .foregroundStyle(Theme.Colors.textTertiary)
+                                        .frame(maxWidth: .infinity)
                                 }
+                            }
 
-                                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 13), spacing: 3) {
-                                    ForEach(heatmap.entries) { entry in
-                                        let fillOpacity = max(0.08, (entry.intensity ?? entry.ratio) * 0.9)
-                                        RoundedRectangle(cornerRadius: 3)
-                                            .fill(Theme.Colors.primary.opacity(fillOpacity))
-                                            .frame(height: 16)
-                                            .onTapGesture {
-                                                HapticManager.selection()
-                                                selectedHeatmapEntry = selectedHeatmapEntry?.id == entry.id ? nil : entry
+                            // Grid with proper weekday alignment
+                            let weeks = chunkEntries(heatmap.entries, startWeekday: heatmap.startWeekday ?? 0)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 3) {
+                                    ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
+                                        VStack(spacing: 3) {
+                                            ForEach(Array(week.enumerated()), id: \.offset) { _, entry in
+                                                if let entry {
+                                                    let fillOpacity = entry.count > 0 ? max(0.15, (entry.intensity ?? entry.ratio) * 0.9) : 0.06
+                                                    RoundedRectangle(cornerRadius: 3)
+                                                        .fill(Theme.Colors.primary.opacity(fillOpacity))
+                                                        .frame(width: 12, height: 12)
+                                                        .accessibilityLabel("\(entry.date), \(entry.count) completions")
+                                                        .onTapGesture {
+                                                            HapticManager.selection()
+                                                            selectedHeatmapEntry = selectedHeatmapEntry?.id == entry.id ? nil : entry
+                                                        }
+                                                } else {
+                                                    Color.clear
+                                                        .frame(width: 12, height: 12)
+                                                }
                                             }
+                                        }
                                     }
                                 }
                             }
@@ -376,6 +386,9 @@ struct StatsView: View {
             .task {
                 await viewModel.loadStats()
             }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ActivityChanged"))) { _ in
+                Task { await viewModel.loadStats() }
+            }
         }
     }
 
@@ -403,5 +416,33 @@ struct StatsView: View {
         .appleCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(title): \(value)")
+    }
+
+    private func chunkEntries(_ entries: [HeatmapEntry], startWeekday: Int) -> [[HeatmapEntry?]] {
+        var weeks: [[HeatmapEntry?]] = []
+        var currentWeek: [HeatmapEntry?] = []
+
+        // Add leading empty cells
+        for _ in 0..<startWeekday {
+            currentWeek.append(nil)
+        }
+
+        for entry in entries {
+            currentWeek.append(entry)
+            if currentWeek.count == 7 {
+                weeks.append(currentWeek)
+                currentWeek = []
+            }
+        }
+
+        // Pad the last week
+        if !currentWeek.isEmpty {
+            while currentWeek.count < 7 {
+                currentWeek.append(nil)
+            }
+            weeks.append(currentWeek)
+        }
+
+        return weeks
     }
 }

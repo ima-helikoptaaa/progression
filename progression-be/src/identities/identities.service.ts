@@ -20,25 +20,32 @@ export class IdentitiesService {
 
   async createIdentity(
     userId: string,
-    data: { name: string; emoji?: string; colorHex?: string; sortOrder?: number },
+    data: {
+      name: string;
+      emoji?: string;
+      colorHex?: string;
+      sortOrder?: number;
+    },
   ) {
-    const count = await this.prisma.identity.count({
-      where: { userId, isActive: true },
-    });
-    if (count >= MAX_IDENTITIES) {
-      throw new BadRequestException(
-        `Maximum ${MAX_IDENTITIES} identities allowed`,
-      );
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const count = await tx.identity.count({
+        where: { userId, isActive: true },
+      });
+      if (count >= MAX_IDENTITIES) {
+        throw new BadRequestException(
+          `Maximum ${MAX_IDENTITIES} identities allowed`,
+        );
+      }
 
-    return this.prisma.identity.create({
-      data: {
-        userId,
-        name: data.name,
-        emoji: data.emoji ?? '🎯',
-        colorHex: data.colorHex ?? '#6C5CE7',
-        sortOrder: data.sortOrder ?? 0,
-      },
+      return tx.identity.create({
+        data: {
+          userId,
+          name: data.name,
+          emoji: data.emoji ?? '🎯',
+          colorHex: data.colorHex ?? '#FF6B35',
+          sortOrder: data.sortOrder ?? 0,
+        },
+      });
     });
   }
 

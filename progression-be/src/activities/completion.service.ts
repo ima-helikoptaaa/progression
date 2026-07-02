@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   isFibonacciDay,
@@ -21,7 +25,7 @@ export class CompletionService {
     const activity = await this.prisma.activity.findFirst({
       where: { id: activityId, userId, isActive: true },
     });
-    if (!activity) throw new BadRequestException('Activity not found');
+    if (!activity) throw new NotFoundException('Activity not found');
     if (activity.isPaused) throw new BadRequestException('Activity is paused');
 
     // Default to current target if no value provided
@@ -58,27 +62,59 @@ export class CompletionService {
       if (completedToday) {
         const updated = await this.prisma.activityLog.update({
           where: { id: existingLog.id },
-          data: { value: { increment: value } },
+          data: {
+            value: { increment: value },
+            completionCount: { increment: 1 },
+          },
         });
-        return this.buildResponse(activity.currentStreak, false, user.totalPoints, true, updated.value);
+        return this.buildResponse(
+          activity.currentStreak,
+          false,
+          user.totalPoints,
+          true,
+          updated.value,
+        );
       }
 
       // Partial progress today, check if this pushes past target
       if (newAccumulatedValue >= activity.currentTarget) {
-        return this.advanceStreakAndComplete(activity, user, today, existingLog.id, value, newAccumulatedValue, notes);
+        return this.advanceStreakAndComplete(
+          activity,
+          user,
+          today,
+          existingLog.id,
+          value,
+          newAccumulatedValue,
+          notes,
+        );
       }
 
       // Still partial
       const updated = await this.prisma.activityLog.update({
         where: { id: existingLog.id },
-        data: { value: { increment: value } },
+        data: {
+          value: { increment: value },
+          completionCount: { increment: 1 },
+        },
       });
-      return this.buildResponse(activity.currentStreak, false, user.totalPoints, false, updated.value);
+      return this.buildResponse(
+        activity.currentStreak,
+        false,
+        user.totalPoints,
+        false,
+        updated.value,
+      );
     }
 
     // No log today — first entry
     if (value >= activity.currentTarget) {
-      return this.createLogAndAdvanceStreak(activity, user, today, value, notes);
+      return this.createLogAndAdvanceStreak(
+        activity,
+        user,
+        today,
+        value,
+        notes,
+      );
     }
 
     // Partial progress — create log, no streak advance
@@ -96,7 +132,13 @@ export class CompletionService {
           notes: notes ?? null,
         },
       });
-      return this.buildResponse(activity.currentStreak, false, user.totalPoints, false, value);
+      return this.buildResponse(
+        activity.currentStreak,
+        false,
+        user.totalPoints,
+        false,
+        value,
+      );
     } catch (error: any) {
       if (error?.code === 'P2002') {
         // Race condition — log was created concurrently, add to it
@@ -108,7 +150,13 @@ export class CompletionService {
             where: { id: concurrentLog.id },
             data: { value: { increment: value } },
           });
-          return this.buildResponse(activity.currentStreak, false, user.totalPoints, false, updated.value);
+          return this.buildResponse(
+            activity.currentStreak,
+            false,
+            user.totalPoints,
+            false,
+            updated.value,
+          );
         }
       }
       throw error;
@@ -134,7 +182,8 @@ export class CompletionService {
       isMilestone: earnedPoint,
       nextMilestone: nextFib,
       prevMilestone: prevFib,
-      progressToNext: streak > 0 ? (streak - prevFib) / Math.max(1, nextFib - prevFib) : 0,
+      progressToNext:
+        streak > 0 ? (streak - prevFib) / Math.max(1, nextFib - prevFib) : 0,
       totalPoints,
       isOvercharge,
       valueDoneToday,
@@ -190,7 +239,10 @@ export class CompletionService {
       if (earnedPoint) {
         await tx.user.update({
           where: { id: user.id },
-          data: { totalPoints: { increment: 1 }, lifetimePoints: { increment: 1 } },
+          data: {
+            totalPoints: { increment: 1 },
+            lifetimePoints: { increment: 1 },
+          },
         });
         await tx.pointTransaction.create({
           data: {
@@ -220,22 +272,33 @@ export class CompletionService {
 
     try {
       const totalPoints = await this.runStreakTransaction(
-        activity, user, today, newStreak, earnedPoint,
-        (tx) => tx.activityLog.create({
-          data: {
-            activityId: activity.id,
-            userId: user.id,
-            completedDate: today,
-            value,
-            targetAtTime: activity.currentTarget,
-            streakAtTime: newStreak,
-            earnedPoint,
-            completionCount: 1,
-            notes: notes ?? null,
-          },
-        }),
+        activity,
+        user,
+        today,
+        newStreak,
+        earnedPoint,
+        (tx) =>
+          tx.activityLog.create({
+            data: {
+              activityId: activity.id,
+              userId: user.id,
+              completedDate: today,
+              value,
+              targetAtTime: activity.currentTarget,
+              streakAtTime: newStreak,
+              earnedPoint,
+              completionCount: 1,
+              notes: notes ?? null,
+            },
+          }),
       );
-      return this.buildResponse(newStreak, earnedPoint, totalPoints, false, value);
+      return this.buildResponse(
+        newStreak,
+        earnedPoint,
+        totalPoints,
+        false,
+        value,
+      );
     } catch (error: any) {
       if (error?.code === 'P2002') {
         // Race: someone else created the log — just accumulate
@@ -247,7 +310,13 @@ export class CompletionService {
             where: { id: existingLog.id },
             data: { value: { increment: value } },
           });
-          return this.buildResponse(activity.currentStreak, false, user.totalPoints, false, updated.value);
+          return this.buildResponse(
+            activity.currentStreak,
+            false,
+            user.totalPoints,
+            false,
+            updated.value,
+          );
         }
       }
       throw error;
@@ -267,16 +336,27 @@ export class CompletionService {
     const earnedPoint = isFibonacciDay(newStreak);
 
     const totalPoints = await this.runStreakTransaction(
-      activity, user, today, newStreak, earnedPoint,
-      (tx) => tx.activityLog.update({
-        where: { id: existingLogId },
-        data: {
-          value: { increment: additionalValue },
-          streakAtTime: newStreak,
-          earnedPoint,
-        },
-      }),
+      activity,
+      user,
+      today,
+      newStreak,
+      earnedPoint,
+      (tx) =>
+        tx.activityLog.update({
+          where: { id: existingLogId },
+          data: {
+            value: { increment: additionalValue },
+            streakAtTime: newStreak,
+            earnedPoint,
+          },
+        }),
     );
-    return this.buildResponse(newStreak, earnedPoint, totalPoints, false, totalValue);
+    return this.buildResponse(
+      newStreak,
+      earnedPoint,
+      totalPoints,
+      false,
+      totalValue,
+    );
   }
 }

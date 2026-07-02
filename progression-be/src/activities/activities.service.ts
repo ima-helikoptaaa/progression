@@ -1,9 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  nextFibonacci,
-  previousFibonacci,
-} from '../common/utils/fibonacci';
+import { nextFibonacci, previousFibonacci } from '../common/utils/fibonacci';
 import { getUserToday } from '../common/utils/date';
 
 @Injectable()
@@ -51,7 +48,12 @@ export class ActivitiesService {
       cueLocation?: string;
       trackingMode?: string;
     },
+    timezone = 'UTC',
   ) {
+    if (data.identityId) {
+      await this.validateOwnership(userId, 'identity', data.identityId);
+    }
+
     const activity = await this.prisma.activity.create({
       data: {
         userId,
@@ -61,7 +63,7 @@ export class ActivitiesService {
         baseTarget: data.baseTarget ?? 1.0,
         currentTarget: data.currentTarget ?? data.baseTarget ?? 1.0,
         stepSize: data.stepSize ?? 1.0,
-        colorHex: data.colorHex ?? '#6C5CE7',
+        colorHex: data.colorHex ?? '#FF6B35',
         sortOrder: data.sortOrder ?? 0,
         identityId: data.identityId ?? null,
         cueTime: data.cueTime ?? null,
@@ -69,7 +71,7 @@ export class ActivitiesService {
         trackingMode: data.trackingMode ?? 'continuous',
       },
     });
-    return this.buildActivityResponse(activity);
+    return this.buildActivityResponse(activity, undefined, undefined, timezone);
   }
 
   async updateActivity(
@@ -80,18 +82,31 @@ export class ActivitiesService {
   ) {
     const activity = await this.getUserActivity(userId, activityId);
 
+    if (data.identityId !== undefined && data.identityId !== null) {
+      await this.validateOwnership(userId, 'identity', data.identityId);
+    }
+    if (data.stackId !== undefined && data.stackId !== null) {
+      await this.validateOwnership(userId, 'stack', data.stackId);
+    }
+
     const updateData: Record<string, any> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.emoji !== undefined) updateData.emoji = data.emoji;
     if (data.colorHex !== undefined) updateData.colorHex = data.colorHex;
     if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
     if (data.unit !== undefined) updateData.unit = data.unit;
+    if (data.baseTarget !== undefined) updateData.baseTarget = data.baseTarget;
+    if (data.currentTarget !== undefined)
+      updateData.currentTarget = data.currentTarget;
+    if (data.stepSize !== undefined) updateData.stepSize = data.stepSize;
     if (data.identityId !== undefined) updateData.identityId = data.identityId;
     if (data.stackId !== undefined) updateData.stackId = data.stackId;
     if (data.stackOrder !== undefined) updateData.stackOrder = data.stackOrder;
     if (data.cueTime !== undefined) updateData.cueTime = data.cueTime;
-    if (data.cueLocation !== undefined) updateData.cueLocation = data.cueLocation;
-    if (data.trackingMode !== undefined) updateData.trackingMode = data.trackingMode;
+    if (data.cueLocation !== undefined)
+      updateData.cueLocation = data.cueLocation;
+    if (data.trackingMode !== undefined)
+      updateData.trackingMode = data.trackingMode;
 
     const today = getUserToday(timezone);
 
@@ -146,22 +161,39 @@ export class ActivitiesService {
     return activity;
   }
 
+  private async validateOwnership(
+    userId: string,
+    type: 'identity' | 'stack',
+    id: string,
+  ) {
+    if (type === 'identity') {
+      const record = await this.prisma.identity.findFirst({
+        where: { id, userId, isActive: true },
+      });
+      if (!record) throw new NotFoundException('Identity not found');
+    } else {
+      const record = await this.prisma.habitStack.findFirst({
+        where: { id, userId, isActive: true },
+      });
+      if (!record) throw new NotFoundException('Stack not found');
+    }
+  }
+
   private buildActivityResponse(
     activity: any,
     today?: Date,
     todayLogs?: Map<string, { value: number }>,
+    timezone = 'UTC',
   ) {
     if (!today) {
-      today = getUserToday('UTC');
+      today = getUserToday(timezone);
     }
 
     const streak = activity.currentStreak;
     const nextFib = nextFibonacci(streak);
     const prevFib = previousFibonacci(streak);
     const progress =
-      streak > 0
-        ? (streak - prevFib) / Math.max(1, nextFib - prevFib)
-        : 0.0;
+      streak > 0 ? (streak - prevFib) / Math.max(1, nextFib - prevFib) : 0.0;
 
     const lastCompleted = activity.lastCompletedDate
       ? new Date(activity.lastCompletedDate)

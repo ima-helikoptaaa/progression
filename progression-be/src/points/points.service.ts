@@ -36,14 +36,11 @@ export class PointsService {
     };
   }
 
-  async spendOnUpgrade(userId: string, activityId: string, requestedTarget?: number) {
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-    });
-    if (user.totalPoints < 1) {
-      throw new BadRequestException('Not enough points');
-    }
-
+  async spendOnUpgrade(
+    userId: string,
+    activityId: string,
+    requestedTarget?: number,
+  ) {
     const activity = await this.prisma.activity.findFirst({
       where: { id: activityId, userId, isActive: true },
     });
@@ -52,20 +49,39 @@ export class PointsService {
     }
 
     const oldTarget = activity.currentTarget;
-    const newTarget = requestedTarget && requestedTarget > oldTarget
-      ? requestedTarget
-      : oldTarget + activity.stepSize;
+    const maxTarget = oldTarget + activity.stepSize * 10;
+    const newTarget =
+      requestedTarget && requestedTarget > oldTarget
+        ? Math.min(requestedTarget, maxTarget)
+        : oldTarget + activity.stepSize;
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
+    if (newTarget <= oldTarget) {
+      throw new BadRequestException(
+        'New target must be greater than current target',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Atomic conditional decrement — only succeeds if user has >= 1 point
+      const updateResult = await tx.user.updateMany({
+        where: { id: userId, totalPoints: { gte: 1 } },
         data: { totalPoints: { decrement: 1 } },
-      }),
-      this.prisma.activity.update({
+      });
+
+      if (updateResult.count === 0) {
+        throw new BadRequestException('Not enough points');
+      }
+
+      const updatedUser = await tx.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+
+      await tx.activity.update({
         where: { id: activityId },
         data: { currentTarget: newTarget },
-      }),
-      this.prisma.pointTransaction.create({
+      });
+
+      await tx.pointTransaction.create({
         data: {
           userId,
           amount: -1,
@@ -73,20 +89,17 @@ export class PointsService {
           activityId,
           description: `Upgraded ${activity.name} target: ${oldTarget} -> ${newTarget}`,
         },
-      }),
-    ]);
+      });
+
+      return updatedUser.totalPoints;
+    });
 
     return {
       newTarget,
-      remainingPoints: user.totalPoints - 1,
+      remainingPoints: result,
     };
   }
 
-  /**
-   * Get the Fibonacci cost for adding the Nth activity (0-indexed existing count).
-   * 1st activity = free (0), 2nd = 1, 3rd = 2, 4th = 3, 5th = 5, 6th = 8...
-   * This uses fibonacciAt(existingCount) where existingCount is the current number of active activities.
-   */
   getActivityCost(existingActiveCount: number): number {
     if (existingActiveCount <= 0) return 0;
     return fibonacciAt(existingActiveCount);
@@ -96,29 +109,29 @@ export class PointsService {
     const cost = this.getActivityCost(existingActiveCount);
     if (cost === 0) return;
 
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-    });
-    if (user.totalPoints < cost) {
-      throw new BadRequestException(
-        `Not enough points. Need ${cost}, have ${user.totalPoints}`,
-      );
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updateResult = await tx.user.updateMany({
+        where: { id: userId, totalPoints: { gte: cost } },
         data: { totalPoints: { decrement: cost } },
-      }),
-      this.prisma.pointTransaction.create({
+      });
+
+      if (updateResult.count === 0) {
+        throw new BadRequestException(
+          `Not enough points. Need ${cost}, have less than ${cost}`,
+        );
+      }
+
+      await tx.pointTransaction.create({
         data: {
           userId,
           amount: -cost,
           transactionType: 'new_activity',
           description: `Spent ${cost} point(s) to add activity #${existingActiveCount + 1}`,
         },
-      }),
-    ]);
+      });
+    });
+
+    return result;
   }
 
   async checkCanCreate(userId: string) {
@@ -132,6 +145,10 @@ export class PointsService {
         `Not enough points. Need ${cost}, have ${user.totalPoints}`,
       );
     }
-    return { canCreate: true, remainingPoints: user.totalPoints, cost };
+    return {
+      canCreate: true,
+      remainingPoints: user.totalPoints - cost,
+      cost,
+    };
   }
 }

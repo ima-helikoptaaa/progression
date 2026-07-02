@@ -83,6 +83,9 @@ struct ActivityUpdate: Codable {
     var colorHex: String? = nil
     var sortOrder: Int? = nil
     var unit: String? = nil
+    var baseTarget: Double? = nil
+    var currentTarget: Double? = nil
+    var stepSize: Double? = nil
     var identityId: UUID? = nil
     var cueTime: String? = nil
     var cueLocation: String? = nil
@@ -154,6 +157,7 @@ struct HeatmapEntry: Codable, Identifiable {
 struct HeatmapResponse: Codable {
     let entries: [HeatmapEntry]
     let totalActivities: Int
+    let startWeekday: Int?
 }
 
 struct ActivityHistoryEntry: Codable {

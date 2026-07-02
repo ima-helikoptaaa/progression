@@ -16,8 +16,10 @@ import { ActivitiesService } from './activities.service';
 import { CompletionService } from './completion.service';
 import { StreakService } from './streak.service';
 import { PointsService } from '../points/points.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 const COLOR_HEX_REGEX = /^#[0-9A-Fa-f]{6}$/;
+const VALID_TRACKING_MODES = ['continuous', 'discrete'];
 
 @Controller('activities')
 export class ActivitiesController {
@@ -26,6 +28,7 @@ export class ActivitiesController {
     private readonly completionService: CompletionService,
     private readonly streakService: StreakService,
     private readonly pointsService: PointsService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get()
@@ -36,7 +39,10 @@ export class ActivitiesController {
   @Get('penalties')
   async checkPenalties(@CurrentUser() user: User) {
     const penalties = await this.streakService.checkAndApplyPenalties(user.id);
-    return { penalties, totalPoints: user.totalPoints };
+    const updatedUser = await this.prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+    });
+    return { penalties, totalPoints: updatedUser.totalPoints };
   }
 
   @Post()
@@ -74,12 +80,23 @@ export class ActivitiesController {
     if (body.step_size !== undefined && body.step_size <= 0) {
       throw new BadRequestException('Step size must be greater than 0');
     }
-    if (
-      body.color_hex !== undefined &&
-      !COLOR_HEX_REGEX.test(body.color_hex)
-    ) {
+    if (body.emoji !== undefined && body.emoji.length > 10) {
+      throw new BadRequestException('Emoji must be 10 characters or less');
+    }
+    if (body.unit !== undefined && body.unit.length > 50) {
+      throw new BadRequestException('Unit must be 50 characters or less');
+    }
+    if (body.color_hex !== undefined && !COLOR_HEX_REGEX.test(body.color_hex)) {
       throw new BadRequestException(
         'Color must be a valid hex code (e.g., #6C5CE7)',
+      );
+    }
+    if (
+      body.tracking_mode !== undefined &&
+      !VALID_TRACKING_MODES.includes(body.tracking_mode)
+    ) {
+      throw new BadRequestException(
+        `Tracking mode must be one of: ${VALID_TRACKING_MODES.join(', ')}`,
       );
     }
 
@@ -89,20 +106,24 @@ export class ActivitiesController {
     // Fibonacci cascading cost: 1st free, 2nd=1pt, 3rd=2pt, 4th=3pt, 5th=5pt...
     await this.pointsService.spendOnNewActivity(user.id, existingCount);
 
-    return this.activitiesService.createActivity(user.id, {
-      name: body.name.trim(),
-      emoji: body.emoji,
-      unit: body.unit,
-      baseTarget: body.base_target,
-      currentTarget: body.current_target,
-      stepSize: body.step_size,
-      colorHex: body.color_hex,
-      sortOrder: body.sort_order,
-      identityId: body.identity_id,
-      cueTime: body.cue_time,
-      cueLocation: body.cue_location,
-      trackingMode: body.tracking_mode,
-    });
+    return this.activitiesService.createActivity(
+      user.id,
+      {
+        name: body.name.trim(),
+        emoji: body.emoji,
+        unit: body.unit,
+        baseTarget: body.base_target,
+        currentTarget: body.current_target,
+        stepSize: body.step_size,
+        colorHex: body.color_hex,
+        sortOrder: body.sort_order,
+        identityId: body.identity_id,
+        cueTime: body.cue_time,
+        cueLocation: body.cue_location,
+        trackingMode: body.tracking_mode,
+      },
+      user.timezone,
+    );
   }
 
   @Put(':id')
@@ -116,6 +137,9 @@ export class ActivitiesController {
       color_hex?: string;
       sort_order?: number;
       unit?: string;
+      base_target?: number;
+      current_target?: number;
+      step_size?: number;
       identity_id?: string;
       stack_id?: string;
       stack_order?: number;
@@ -132,28 +156,53 @@ export class ActivitiesController {
         'Activity name must be 50 characters or less',
       );
     }
-    if (
-      body.color_hex !== undefined &&
-      !COLOR_HEX_REGEX.test(body.color_hex)
-    ) {
+    if (body.base_target !== undefined && body.base_target <= 0) {
+      throw new BadRequestException('Base target must be greater than 0');
+    }
+    if (body.step_size !== undefined && body.step_size <= 0) {
+      throw new BadRequestException('Step size must be greater than 0');
+    }
+    if (body.emoji !== undefined && body.emoji.length > 10) {
+      throw new BadRequestException('Emoji must be 10 characters or less');
+    }
+    if (body.unit !== undefined && body.unit.length > 50) {
+      throw new BadRequestException('Unit must be 50 characters or less');
+    }
+    if (body.color_hex !== undefined && !COLOR_HEX_REGEX.test(body.color_hex)) {
       throw new BadRequestException(
         'Color must be a valid hex code (e.g., #6C5CE7)',
       );
     }
+    if (
+      body.tracking_mode !== undefined &&
+      !VALID_TRACKING_MODES.includes(body.tracking_mode)
+    ) {
+      throw new BadRequestException(
+        `Tracking mode must be one of: ${VALID_TRACKING_MODES.join(', ')}`,
+      );
+    }
 
-    return this.activitiesService.updateActivity(user.id, id, {
-      name: body.name?.trim(),
-      emoji: body.emoji,
-      colorHex: body.color_hex,
-      sortOrder: body.sort_order,
-      unit: body.unit,
-      identityId: body.identity_id,
-      stackId: body.stack_id,
-      stackOrder: body.stack_order,
-      cueTime: body.cue_time,
-      cueLocation: body.cue_location,
-      trackingMode: body.tracking_mode,
-    }, user.timezone);
+    return this.activitiesService.updateActivity(
+      user.id,
+      id,
+      {
+        name: body.name?.trim(),
+        emoji: body.emoji,
+        colorHex: body.color_hex,
+        sortOrder: body.sort_order,
+        unit: body.unit,
+        baseTarget: body.base_target,
+        currentTarget: body.current_target,
+        stepSize: body.step_size,
+        identityId: body.identity_id,
+        stackId: body.stack_id,
+        stackOrder: body.stack_order,
+        cueTime: body.cue_time,
+        cueLocation: body.cue_location,
+        trackingMode: body.tracking_mode,
+      },
+      user.timezone,
+    );
   }
 
   @Delete(':id')

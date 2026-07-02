@@ -47,6 +47,7 @@ struct ActivityDetailView: View {
         .sheet(isPresented: $showEditSheet) {
             EditActivityView(activity: viewModel.activity) {
                 Task { await viewModel.refreshActivity() }
+                NotificationCenter.default.post(name: NSNotification.Name("ActivityChanged"), object: nil)
             }
         }
         .sheet(isPresented: $showStackPicker) {
@@ -62,6 +63,7 @@ struct ActivityDetailView: View {
             Button("Delete", role: .destructive) {
                 Task {
                     if await viewModel.deleteActivity() {
+                        NotificationCenter.default.post(name: NSNotification.Name("ActivityChanged"), object: nil)
                         dismiss()
                     }
                 }
@@ -73,7 +75,9 @@ struct ActivityDetailView: View {
             await viewModel.loadHistory()
             do {
                 otherActivities = try await APIService.shared.listActivities()
-            } catch {}
+            } catch {
+                otherActivities = []
+            }
         }
     }
 
@@ -211,7 +215,18 @@ struct ActivityDetailView: View {
 
     @ViewBuilder
     private var trendChartSection: some View {
-        if !viewModel.historyValues.isEmpty {
+        if viewModel.isLoading {
+            VStack(spacing: 8) {
+                ProgressView()
+                    .tint(Theme.Colors.primary)
+                Text("Loading history...")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.Colors.textTertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 30)
+            .appleCard()
+        } else if !viewModel.historyValues.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text("Value Trend (30 Days)")
@@ -272,7 +287,28 @@ struct ActivityDetailView: View {
     }
 
     private func calendarGrid(_ history: ActivityHistoryResponse) -> some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+        // Build a dense map of all dates
+        let logMap = Dictionary(uniqueKeysWithValues: history.entries.map { ($0.date, $0) })
+
+        // Get the date range (last 30 days from today)
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withFullDate]
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let startDate = calendar.date(byAdding: .day, value: -29, to: today)!
+
+        // Generate all dates in range
+        var allDates: [Date] = []
+        var cursor = startDate
+        while cursor <= today {
+            allDates.append(cursor)
+            cursor = calendar.date(byAdding: .day, value: 1, to: cursor)!
+        }
+
+        // Calculate leading empty cells for weekday alignment
+        let firstWeekday = calendar.component(.weekday, from: startDate) - 1 // 0=Sunday
+
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
             ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { day in
                 Text(day)
                     .font(.system(size: 10, weight: .medium))
@@ -280,30 +316,47 @@ struct ActivityDetailView: View {
                     .frame(height: 16)
             }
 
-            ForEach(Array(history.entries.enumerated()), id: \.offset) { _, entry in
-                calendarCell(entry)
+            // Leading empty cells
+            ForEach(0..<firstWeekday, id: \.self) { _ in
+                Color.clear.frame(height: 28)
+            }
+
+            // Day cells
+            ForEach(allDates, id: \.self) { date in
+                let dateStr = dateFormatter.string(from: date)
+                let entry = logMap[dateStr]
+                calendarCell(date: date, entry: entry)
             }
         }
     }
 
-    private func calendarCell(_ entry: ActivityHistoryEntry) -> some View {
-        let ratio: Double = entry.value > 0 ? 0.15 + 0.85 * min(1.0, entry.value / max(entry.target, 1)) : 0.05
+    private func calendarCell(date: Date, entry: ActivityHistoryEntry?) -> some View {
+        let value = entry?.value ?? 0
+        let target = entry?.target ?? viewModel.activity.currentTarget
+        let ratio: Double = value > 0 ? 0.15 + 0.85 * min(1.0, value / max(target, 1)) : 0.05
         let cellColor = Theme.Colors.primary
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withFullDate]
+        let dateStr = dateFormatter.string(from: date)
+
         return RoundedRectangle(cornerRadius: 4)
             .fill(cellColor.opacity(ratio))
             .frame(height: 28)
             .overlay(
                 Group {
-                    if selectedDayEntry?.date == entry.date {
-                        Text("\(Int(entry.value))/\(Int(entry.target))")
+                    if selectedDayEntry?.date == dateStr {
+                        Text("\(Int(value))/\(Int(target))")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(ratio > 0.5 ? .white : Theme.Colors.textPrimary)
                     }
                 }
             )
+            .accessibilityLabel("\(dateStr), \(Int(value)) of \(Int(target)) \(viewModel.activity.unit)")
             .onTapGesture {
                 HapticManager.selection()
-                selectedDayEntry = selectedDayEntry?.date == entry.date ? nil : entry
+                if let entry {
+                    selectedDayEntry = selectedDayEntry?.date == entry.date ? nil : entry
+                }
             }
     }
 
@@ -373,7 +426,46 @@ struct ActivityDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
-                    Text("Select an activity to stack with \(viewModel.activity.name)")
+                    if viewModel.activity.stackId != nil {
+                        // Remove from stack option
+                        Button {
+                            Task {
+                                do {
+                                    if let stackId = viewModel.activity.stackId {
+                                        _ = try await APIService.shared.removeActivityFromStack(
+                                            stackId,
+                                            body: HabitStackAddActivity(activityId: viewModel.activity.id)
+                                        )
+                                        HapticManager.success()
+                                        showStackPicker = false
+                                        await viewModel.refreshActivity()
+                                        NotificationCenter.default.post(name: NSNotification.Name("ActivityChanged"), object: nil)
+                                    }
+                                } catch {
+                                    viewModel.errorMessage = error.localizedDescription
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "link.badge.plus")
+                                    .font(.title3)
+                                    .foregroundStyle(Theme.Colors.danger)
+                                Text("Remove from stack")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(Theme.Colors.danger)
+                                Spacer()
+                            }
+                            .padding(Theme.Layout.cardPadding)
+                            .background(Theme.Colors.danger.opacity(0.06))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.Layout.cardRadius)
+                                    .stroke(Theme.Colors.danger.opacity(0.2), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardRadius))
+                        }
+                    }
+
+                    Text(viewModel.activity.stackId != nil ? "Or stack with another activity:" : "Select an activity to stack with \(viewModel.activity.name)")
                         .font(.system(size: 14))
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .padding(.top, 8)
@@ -396,6 +488,7 @@ struct ActivityDetailView: View {
                                     HapticManager.success()
                                     showStackPicker = false
                                     await viewModel.refreshActivity()
+                                    NotificationCenter.default.post(name: NSNotification.Name("ActivityChanged"), object: nil)
                                 } catch {
                                     viewModel.errorMessage = error.localizedDescription
                                 }

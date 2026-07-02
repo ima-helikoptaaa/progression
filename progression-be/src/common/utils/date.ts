@@ -9,7 +9,6 @@ export function getUserToday(timezone: string): Date {
     });
     return new Date(dateStr + 'T00:00:00.000Z');
   } catch {
-    // Invalid timezone — fall back to UTC
     const d = new Date();
     d.setUTCHours(0, 0, 0, 0);
     return d;
@@ -18,14 +17,18 @@ export function getUserToday(timezone: string): Date {
 
 export function getUserYesterday(timezone: string): Date {
   const today = getUserToday(timezone);
-  today.setUTCDate(today.getUTCDate() - 1);
-  return today;
+  const yesterday = new Date(today);
+  yesterday.setUTCDate(today.getUTCDate() - 1);
+  return yesterday;
 }
 
 /**
  * Calculate number of full days between two dates (date-only, no time component).
+ * Returns 0 if b is before or equal to a (never negative).
  */
 export function daysBetween(a: Date, b: Date): number {
   const msPerDay = 86_400_000;
-  return Math.floor(Math.abs(b.getTime() - a.getTime()) / msPerDay);
+  const diff = b.getTime() - a.getTime();
+  if (diff <= 0) return 0;
+  return Math.floor(diff / msPerDay);
 }

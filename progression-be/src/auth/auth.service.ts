@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { findOrCreateUser } from '../common/utils/user-helper';
 
 @Injectable()
 export class AuthService {
@@ -9,36 +10,16 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async login(idToken: string) {
+  async login(idToken: string, timezone?: string) {
     const decoded = await this.firebase.verifyToken(idToken);
-    const firebaseUid = decoded.uid;
+    const user = await findOrCreateUser(this.prisma, decoded);
 
-    let user = await this.prisma.user.findUnique({
-      where: { firebaseUid },
-    });
-
-    if (!user) {
-      user = await this.prisma.$transaction(async (tx) => {
-        const newUser = await tx.user.create({
-          data: {
-            firebaseUid,
-            email: decoded.email ?? '',
-            displayName: decoded.name ?? null,
-            photoUrl: decoded.picture ?? null,
-            totalPoints: 1,
-            lifetimePoints: 1,
-          },
-        });
-        await tx.pointTransaction.create({
-          data: {
-            userId: newUser.id,
-            amount: 1,
-            transactionType: 'welcome',
-            description: 'Welcome bonus point',
-          },
-        });
-        return newUser;
+    if (timezone && timezone !== user.timezone) {
+      const updated = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { timezone },
       });
+      return updated;
     }
 
     return user;

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CompleteActivitySheet: View {
     let activity: ActivityResponse
-    let onComplete: (Double, String?) async -> Bool
+    let onComplete: (Double, String?) async -> (success: Bool, error: String?)
     @Environment(\.dismiss) private var dismiss
 
     @State private var currentValue: Double = 0
@@ -442,8 +442,8 @@ struct CompleteActivitySheet: View {
         let finalNotes = notes.isEmpty ? nil : notes
 
         Task {
-            let success = await onComplete(finalValue, finalNotes)
-            if success {
+            let result = await onComplete(finalValue, finalNotes)
+            if result.success {
                 withAnimation(Theme.Animation.spring) {
                     didComplete = true
                 }
@@ -454,7 +454,7 @@ struct CompleteActivitySheet: View {
                 }
             } else {
                 isSubmitting = false
-                submitError = "Failed to save. Check your connection."
+                submitError = result.error ?? "Failed to save. Check your connection."
                 HapticManager.warning()
             }
         }

@@ -78,6 +78,7 @@ struct OnboardingView: View {
                     } else if currentPage < pages.count - 1 {
                         withAnimation { currentPage += 1 }
                     } else {
+                        NotificationCenter.default.post(name: NSNotification.Name("ShowNewActivity"), object: nil)
                         authService.completeOnboarding()
                     }
                 } label: {
@@ -104,7 +105,7 @@ struct OnboardingView: View {
 
     private var buttonTitle: String {
         switch currentPage {
-        case 0: return "Sign In"
+        case 0: return "Get Started"
         case pages.count - 1: return "Get Started"
         default: return "Next"
         }

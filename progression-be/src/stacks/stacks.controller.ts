@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -23,11 +24,16 @@ export class StacksController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async createStack(
-    @CurrentUser() user: User,
-    @Body() body: { name: string },
-  ) {
-    return this.stacksService.createStack(user.id, body.name);
+  async createStack(@CurrentUser() user: User, @Body() body: { name: string }) {
+    if (!body.name || body.name.trim().length === 0) {
+      throw new BadRequestException('Stack name is required');
+    }
+    if (body.name.trim().length > 100) {
+      throw new BadRequestException(
+        'Stack name must be 100 characters or less',
+      );
+    }
+    return this.stacksService.createStack(user.id, body.name.trim());
   }
 
   @Post(':id/add')
@@ -36,6 +42,9 @@ export class StacksController {
     @Param('id') id: string,
     @Body() body: { activity_id: string; order?: number },
   ) {
+    if (!body.activity_id) {
+      throw new BadRequestException('activity_id is required');
+    }
     return this.stacksService.addActivity(
       user.id,
       id,
@@ -50,6 +59,9 @@ export class StacksController {
     @Param('id') id: string,
     @Body() body: { activity_id: string },
   ) {
+    if (!body.activity_id) {
+      throw new BadRequestException('activity_id is required');
+    }
     return this.stacksService.removeActivity(user.id, id, body.activity_id);
   }
 
@@ -59,6 +71,9 @@ export class StacksController {
     @Param('id') id: string,
     @Body() body: { activity_ids: string[] },
   ) {
+    if (!Array.isArray(body.activity_ids)) {
+      throw new BadRequestException('activity_ids must be an array');
+    }
     return this.stacksService.reorderStack(user.id, id, body.activity_ids);
   }
 

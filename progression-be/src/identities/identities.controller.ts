@@ -45,10 +45,7 @@ export class IdentitiesController {
         'Identity name must be 30 characters or less',
       );
     }
-    if (
-      body.color_hex !== undefined &&
-      !COLOR_HEX_REGEX.test(body.color_hex)
-    ) {
+    if (body.color_hex !== undefined && !COLOR_HEX_REGEX.test(body.color_hex)) {
       throw new BadRequestException(
         'Color must be a valid hex code (e.g., #6C5CE7)',
       );
@@ -82,10 +79,7 @@ export class IdentitiesController {
         'Identity name must be 30 characters or less',
       );
     }
-    if (
-      body.color_hex !== undefined &&
-      !COLOR_HEX_REGEX.test(body.color_hex)
-    ) {
+    if (body.color_hex !== undefined && !COLOR_HEX_REGEX.test(body.color_hex)) {
       throw new BadRequestException(
         'Color must be a valid hex code (e.g., #6C5CE7)',
       );

@@ -59,6 +59,11 @@ struct MiniChartView: View {
                         }
                     }
                     .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                } else if values.count == 1 {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 6, height: 6)
+                        .position(x: geo.size.width / 2, y: geo.size.height * (1 - values[0] / maxVal))
                 }
             }
         }

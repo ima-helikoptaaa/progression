@@ -2,10 +2,11 @@ import Foundation
 import Security
 
 enum KeychainHelper {
-    private static let service = "com.progression.app"
+    private static let service = "com.adityajha.progression"
 
-    static func save(key: String, value: String) {
-        guard let data = value.data(using: .utf8) else { return }
+    @discardableResult
+    static func save(key: String, value: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -13,14 +14,14 @@ enum KeychainHelper {
             kSecAttrAccount as String: key,
         ]
 
-        // Delete existing item first
         SecItemDelete(query as CFDictionary)
 
         var addQuery = query
         addQuery[kSecValueData as String] = data
         addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 
-        SecItemAdd(addQuery as CFDictionary, nil)
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        return status == errSecSuccess
     }
 
     static func read(key: String) -> String? {

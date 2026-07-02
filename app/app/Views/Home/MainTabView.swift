@@ -30,7 +30,7 @@ struct MainTabView: View {
                 .tag(3)
         }
         .tint(Theme.Colors.primary)
-        .onChange(of: selectedTab) {
+        .onChange(of: selectedTab) { _, _ in
             HapticManager.selection()
         }
     }

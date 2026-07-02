@@ -5,6 +5,7 @@ struct NewActivityView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = NewActivityViewModel()
     @State private var identities: [IdentityResponse] = []
+    @State private var existingActivityCount = 0
     @State private var showAllIcons = false
     let onCreated: () -> Void
 
@@ -64,7 +65,11 @@ struct NewActivityView: View {
             .task {
                 do {
                     identities = try await APIService.shared.listIdentities()
-                } catch {}
+                    let activities = try await APIService.shared.listActivities()
+                    existingActivityCount = activities.filter { $0.isActive }.count
+                } catch {
+                    existingActivityCount = 0
+                }
             }
         }
     }
@@ -158,6 +163,8 @@ struct NewActivityView: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(viewModel.emoji == emoji ? previewColor : Theme.Colors.cardBorder.opacity(0.5), lineWidth: viewModel.emoji == emoji ? 2 : 1)
                         )
+                        .accessibilityLabel("Icon \(emoji)")
+                        .accessibilityAddTraits(viewModel.emoji == emoji ? [.isButton, .isSelected] : .isButton)
                         .onTapGesture {
                             viewModel.emoji = emoji
                             HapticManager.selection()
@@ -220,6 +227,8 @@ struct NewActivityView: View {
                         .scaleEffect(isSelected ? 1.15 : 1.0)
                         .animation(Theme.Animation.bouncy, value: viewModel.colorHex)
                         .frame(maxWidth: .infinity)
+                        .accessibilityLabel("Color")
+                        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                         .onTapGesture {
                             viewModel.colorHex = hex
                             HapticManager.selection()
@@ -483,27 +492,46 @@ struct NewActivityView: View {
     // MARK: - Cost Badge
 
     private var costBadge: some View {
-        HStack(spacing: 8) {
+        let cost = viewModel.activityCost(existingCount: existingActivityCount)
+        let userPoints = authService.currentUser?.totalPoints ?? 0
+
+        return HStack(spacing: 8) {
             Image(systemName: Theme.Icons.pointIcon)
-                .foregroundStyle(Theme.Colors.accent)
+                .foregroundStyle(cost == 0 ? Theme.Colors.accent : Theme.Colors.warning)
                 .font(.system(size: 14))
-            Text("Free!")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Theme.Colors.success)
+            if cost == 0 {
+                Text("Free!")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.success)
+            } else {
+                Text("Costs \(cost) point\(cost == 1 ? "" : "s")")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(userPoints >= cost ? Theme.Colors.textPrimary : Theme.Colors.danger)
+            }
             Spacer()
-            Text("1 FREE POINT")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.Colors.primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Theme.Colors.primary.opacity(0.12))
-                .clipShape(Capsule())
+            if cost == 0 {
+                Text("1 FREE POINT")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.Colors.primary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Theme.Colors.primary.opacity(0.12))
+                    .clipShape(Capsule())
+            } else {
+                Text("\(userPoints) available")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(userPoints >= cost ? Theme.Colors.success : Theme.Colors.danger)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background((userPoints >= cost ? Theme.Colors.success : Theme.Colors.danger).opacity(0.12))
+                    .clipShape(Capsule())
+            }
         }
         .padding(14)
-        .background(Theme.Colors.success.opacity(0.06))
+        .background((cost == 0 ? Theme.Colors.success : (userPoints >= cost ? Theme.Colors.accent : Theme.Colors.danger)).opacity(0.06))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Theme.Colors.success.opacity(0.2), lineWidth: 1)
+                .stroke((cost == 0 ? Theme.Colors.success : (userPoints >= cost ? Theme.Colors.accent : Theme.Colors.danger)).opacity(0.2), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
@@ -516,7 +544,7 @@ struct NewActivityView: View {
             Button {
                 let points = authService.currentUser?.totalPoints ?? 0
                 Task {
-                    let success = await viewModel.createActivity(userPoints: points, existingCount: 0)
+                    let success = await viewModel.createActivity(userPoints: points, existingCount: existingActivityCount)
                     if success {
                         onCreated()
                         dismiss()

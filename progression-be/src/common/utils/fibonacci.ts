@@ -1,5 +1,5 @@
 export const FIBONACCI_CHECKPOINTS: number[] = [
-  1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377,
+  1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610,
 ];
 
 const fibSet = new Set(FIBONACCI_CHECKPOINTS);
@@ -28,7 +28,8 @@ export function previousFibonacci(streak: number): number {
 export function fibonacciAt(n: number): number {
   if (n <= 0) return 0;
   if (n === 1) return 1;
-  let a = 0, b = 1;
+  let a = 0,
+    b = 1;
   for (let i = 2; i <= n; i++) {
     [a, b] = [b, a + b];
   }
@@ -41,5 +42,5 @@ export function nextFibonacci(streak: number): number {
       return f;
     }
   }
-  return FIBONACCI_CHECKPOINTS[FIBONACCI_CHECKPOINTS.length - 1];
+  return streak + 1;
 }

@@ -129,13 +129,11 @@ struct CelebrationOverlay: View {
                 }
                 .scaleEffect(showContent ? 1.0 : 0.5)
                 .opacity(showContent ? 1.0 : 0)
+                .onTapGesture { dismiss() }
             }
             .onAppear {
                 generateParticles()
                 HapticManager.success()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    HapticManager.success()
-                }
                 withAnimation(Theme.Animation.spring) {
                     showContent = true
                 }

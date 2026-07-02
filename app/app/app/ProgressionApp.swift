@@ -9,9 +9,12 @@ struct ProgressionApp: App {
 
     init() {
         FirebaseApp.configure()
-        GIDSignIn.sharedInstance.configuration = GIDConfiguration(
-            clientID: "103377356088-0ld1h153ilv360je2ch7a367gksel3sd.apps.googleusercontent.com"
-        )
+
+        let clientID = Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String
+            ?? (Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist").flatMap { url in
+                (NSDictionary(contentsOf: url)?["CLIENT_ID"] as? String)
+            }) ?? ""
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
 
         // Configure tab bar appearance for warm theme (adaptive)
         let tabAppearance = UITabBarAppearance()

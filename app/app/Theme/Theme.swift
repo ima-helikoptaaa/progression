@@ -24,6 +24,9 @@ enum Theme {
         static let foxOrange = Color(hex: "FF6B35")
         static let foxCream = Color(adaptiveLight: "FFF3E0", dark: "2A1F14")
 
+        // Progress card (dark warm gradient)
+        static let progressCardBg = Color(adaptiveLight: "1A0E00", dark: "0D0700")
+
         // Curated activity color palette (6 warm-toned colors)
         static let activityColors: [String] = [
             "#FF6B35", "#7BAF5E", "#C4956A", "#9B86B2",
@@ -36,6 +39,15 @@ enum Theme {
         static let buttonRadius: CGFloat = 14
         static let padding: CGFloat = 16
         static let cardPadding: CGFloat = 20
+        static let smallPadding: CGFloat = 8
+        static let largePadding: CGFloat = 24
+    }
+
+    enum Shadows {
+        static let card = (color: Color(hex: "FF6B35").opacity(0.08), radius: CGFloat(12), x: CGFloat(0), y: CGFloat(4))
+        static let subtle = (color: Color.black.opacity(0.04), radius: CGFloat(6), x: CGFloat(0), y: CGFloat(2))
+        static let elevated = (color: Color(hex: "FF6B35").opacity(0.12), radius: CGFloat(16), x: CGFloat(0), y: CGFloat(6))
+        static let glow = (color: Color(hex: "FF6B35").opacity(0.3), radius: CGFloat(20), x: CGFloat(0), y: CGFloat(0))
     }
 
     enum Icons {

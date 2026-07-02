@@ -19,7 +19,7 @@ struct AnimatedCounter: View {
                 hasAppeared = true
                 animateCount()
             }
-            .onChange(of: value) {
+            .onChange(of: value) { _, _ in
                 animateCount()
             }
             .onDisappear {

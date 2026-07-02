@@ -46,8 +46,10 @@ class AuthService {
         }
 
         do {
-            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                  let root = windowScene.windows.first?.rootViewController else {
+            guard let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+                  let root = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
                 errorMessage = "Cannot find root view controller"
                 return
             }
@@ -69,16 +71,22 @@ class AuthService {
             }
 
             api.authToken = firebaseIdToken
-            let user = try await api.login(idToken: firebaseIdToken)
+            let user = try await api.login(idToken: firebaseIdToken, timezone: TimeZone.current.identifier)
             KeychainHelper.save(key: tokenKey, value: firebaseIdToken)
             currentUser = user
 
-            let activities = try await api.listActivities()
-            authState = activities.isEmpty ? .onboarding : .authenticated
+            do {
+                let activities = try await api.listActivities()
+                authState = activities.isEmpty ? .onboarding : .authenticated
+            } catch {
+                authState = .authenticated
+            }
         } catch {
             errorMessage = error.localizedDescription
-            api.authToken = nil
-            authState = .unauthenticated
+            if case APIError.unauthorized = error {
+                api.authToken = nil
+                authState = .unauthenticated
+            }
         }
     }
 
@@ -118,17 +126,25 @@ class AuthService {
             currentUser = user
             authState = .authenticated
         } catch let error as APIError {
-            if case .tokenExpired = error, await refreshToken() {
-                // Retry with fresh token
-                if let user = try? await api.getMe() {
-                    currentUser = user
-                    authState = .authenticated
-                    return
+            switch error {
+            case .tokenExpired:
+                if await refreshToken() {
+                    if let user = try? await api.getMe() {
+                        currentUser = user
+                        authState = .authenticated
+                        return
+                    }
                 }
+                signOut()
+            case .unauthorized:
+                signOut()
+            case .offline, .networkError:
+                authState = .authenticated
+            default:
+                authState = .authenticated
             }
-            signOut()
         } catch {
-            signOut()
+            authState = .authenticated
         }
     }
 

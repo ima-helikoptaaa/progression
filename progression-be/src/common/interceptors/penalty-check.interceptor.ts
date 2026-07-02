@@ -31,7 +31,7 @@ export class PenaltyCheckInterceptor implements NestInterceptor {
     if (isPublic) return next.handle();
 
     const request = context.switchToHttp().getRequest();
-    const isNewUser = (request as any).__isNewUser;
+    const isNewUser = request.__isNewUser;
     if (isNewUser) return next.handle();
 
     // Skip if this IS the penalties endpoint (it handles its own check)

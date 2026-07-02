@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { FirebaseModule } from './firebase/firebase.module';
 import { FirebaseAuthGuard } from './common/guards/firebase-auth.guard';
 import { SnakeCaseInterceptor } from './common/interceptors/snake-case.interceptor';
+import { PenaltyCheckInterceptor } from './common/interceptors/penalty-check.interceptor';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ActivitiesModule } from './activities/activities.module';
@@ -65,6 +66,10 @@ import { JobsModule } from './jobs/jobs.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: SnakeCaseInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PenaltyCheckInterceptor,
     },
   ],
 })

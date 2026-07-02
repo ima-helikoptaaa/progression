@@ -48,10 +48,14 @@ class HomeViewModel {
             }
         }
 
-        // General (unassigned) section
         let unassigned = activities.filter { $0.identityId == nil && !$0.isPaused }
         if !unassigned.isEmpty {
             groups.append((identity: nil, activities: unassigned))
+        }
+
+        let paused = activities.filter { $0.isPaused }
+        if !paused.isEmpty {
+            groups.append((identity: nil, activities: paused))
         }
 
         return groups
@@ -145,7 +149,6 @@ class HomeViewModel {
             if result.isMilestone {
                 showCelebration = true
             }
-            HapticManager.success()
 
             // Check if there's a next activity in the stack
             if let stackId = activity.stackId,

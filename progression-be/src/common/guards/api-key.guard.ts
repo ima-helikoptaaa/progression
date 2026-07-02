@@ -20,11 +20,15 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException('Agent API key not configured');
     }
 
+    if (!apiKey || typeof apiKey !== 'string') {
+      throw new UnauthorizedException('Invalid API key');
+    }
+
+    const apiKeyBuf = Buffer.from(apiKey);
+    const expectedBuf = Buffer.from(expectedKey);
     if (
-      !apiKey ||
-      typeof apiKey !== 'string' ||
-      apiKey.length !== expectedKey.length ||
-      !timingSafeEqual(Buffer.from(apiKey), Buffer.from(expectedKey))
+      apiKeyBuf.length !== expectedBuf.length ||
+      !timingSafeEqual(apiKeyBuf, expectedBuf)
     ) {
       throw new UnauthorizedException('Invalid API key');
     }

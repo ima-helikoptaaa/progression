@@ -7,7 +7,6 @@ struct HomeView: View {
     @State private var showNewActivity = false
     @State private var selectedActivity: ActivityResponse?
     @State private var completingActivity: ActivityResponse?
-    @State private var showStackCompletion: ActivityResponse?
     @State private var dropTargetId: UUID?
     @State private var showStackConfirm = false
     @State private var pendingStackSource: UUID?
@@ -33,10 +32,39 @@ struct HomeView: View {
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
 
+                    if let error = viewModel.errorMessage {
+                        HStack(spacing: 10) {
+                            Image(systemName: "wifi.exclamationmark")
+                                .foregroundStyle(Theme.Colors.danger)
+                            Text(error)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                            Spacer()
+                            Button("Retry") {
+                                viewModel.errorMessage = nil
+                                Task { await viewModel.loadActivities() }
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.Colors.primary)
+                        }
+                        .padding(Theme.Layout.cardPadding)
+                        .background(Theme.Colors.danger.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.Layout.cardRadius)
+                                .stroke(Theme.Colors.danger.opacity(0.2), lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cardRadius))
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: Theme.Layout.padding, bottom: 0, trailing: Theme.Layout.padding))
+                        .listRowSeparator(.hidden)
+                    }
+
                     if viewModel.groupByIdentity && !viewModel.identities.isEmpty {
                         groupedContent
+                            .transition(.opacity.combined(with: .move(edge: .leading)))
                     } else {
                         standardContent
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
 
                     // Loading
@@ -109,16 +137,7 @@ struct HomeView: View {
                     if let points = result.totalPoints {
                         authService.updatePoints(points)
                     }
-                    return result.success
-                }
-            }
-            .sheet(item: $showStackCompletion) { activity in
-                CompleteActivitySheet(activity: activity) { value, notes in
-                    let result = await viewModel.completeActivity(activity, value: value, notes: notes)
-                    if let points = result.totalPoints {
-                        authService.updatePoints(points)
-                    }
-                    return result.success
+                    return (result.success, result.success ? nil : viewModel.errorMessage)
                 }
             }
             .task {
@@ -131,6 +150,17 @@ struct HomeView: View {
                     authService.updatePoints(result.totalPoints)
                 }
                 await viewModel.loadActivities()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ActivityChanged"))) { _ in
+                Task { await viewModel.loadActivities() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PointsUpdated"))) { notification in
+                if let points = notification.object as? Int {
+                    authService.updatePoints(points)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowNewActivity"))) { _ in
+                showNewActivity = true
             }
             .alert("Stack Activities", isPresented: $showStackConfirm) {
                 Button("Cancel", role: .cancel) {
@@ -167,7 +197,7 @@ struct HomeView: View {
                    let activity = viewModel.activities.first(where: { $0.id == nextId }) {
                     viewModel.nextStackActivityId = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        showStackCompletion = activity
+                        completingActivity = activity
                     }
                 }
             }
@@ -207,18 +237,23 @@ struct HomeView: View {
                 }
 
                 // Points badge
-                HStack(spacing: 4) {
-                    Image(systemName: Theme.Icons.pointIcon)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.Colors.warning)
-                    Text("\(authService.currentUser?.totalPoints ?? 0)")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.textPrimary)
+                NavigationLink {
+                    PointsView()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: Theme.Icons.pointIcon)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.Colors.warning)
+                        Text("\(authService.currentUser?.totalPoints ?? 0)")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Theme.Colors.accent.opacity(0.25))
+                    .clipShape(Capsule())
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Theme.Colors.accent.opacity(0.25))
-                .clipShape(Capsule())
+                .buttonStyle(.plain)
             }
             .padding(.bottom, 20)
 
@@ -286,7 +321,13 @@ struct HomeView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(hex: "1A0E00"))
+                .fill(
+                    LinearGradient(
+                        colors: [Theme.Colors.progressCardBg, Theme.Colors.progressCardBg.opacity(0.85)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
     }
 
@@ -511,6 +552,17 @@ extension ActivityResponse: @retroactive Hashable {
     }
 
     public static func == (lhs: ActivityResponse, rhs: ActivityResponse) -> Bool {
-        lhs.id == rhs.id && lhs.currentStreak == rhs.currentStreak && lhs.completedToday == rhs.completedToday && lhs.valueDoneToday == rhs.valueDoneToday
+        lhs.id == rhs.id &&
+        lhs.currentStreak == rhs.currentStreak &&
+        lhs.bestStreak == rhs.bestStreak &&
+        lhs.completedToday == rhs.completedToday &&
+        lhs.valueDoneToday == rhs.valueDoneToday &&
+        lhs.currentTarget == rhs.currentTarget &&
+        lhs.nextMilestone == rhs.nextMilestone &&
+        lhs.progressToNext == rhs.progressToNext &&
+        lhs.isPaused == rhs.isPaused &&
+        lhs.name == rhs.name &&
+        lhs.emoji == rhs.emoji &&
+        lhs.colorHex == rhs.colorHex
     }
 }

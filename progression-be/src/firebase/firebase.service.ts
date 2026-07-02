@@ -1,4 +1,8 @@
-import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 import * as fs from 'fs';
@@ -33,9 +37,7 @@ export class FirebaseService implements OnModuleInit {
     }
   }
 
-  async verifyToken(
-    idToken: string,
-  ): Promise<admin.auth.DecodedIdToken> {
+  async verifyToken(idToken: string): Promise<admin.auth.DecodedIdToken> {
     try {
       return await this.app.auth().verifyIdToken(idToken);
     } catch (error: any) {
@@ -45,13 +47,9 @@ export class FirebaseService implements OnModuleInit {
         code === 'auth/argument-error' ||
         error?.message?.includes('expired')
       ) {
-        throw new UnauthorizedException(
-          'Token expired. Please sign in again.',
-        );
+        throw new UnauthorizedException('Token expired. Please sign in again.');
       }
-      throw new UnauthorizedException(
-        'Invalid authentication token.',
-      );
+      throw new UnauthorizedException('Invalid authentication token.');
     }
   }
 }

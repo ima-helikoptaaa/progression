@@ -12,9 +12,13 @@ class StatsViewModel {
 
     var weeklyCompletionRate: Double {
         guard let overview, overview.activeActivities > 0 else { return 0 }
-        let possible = overview.activeActivities * 7
+        let calendar = Calendar.current
+        let dayOfWeek = calendar.component(.weekday, from: Date())
+        let mondayOffset = dayOfWeek == 1 ? 6 : dayOfWeek - 2
+        let daysElapsed = mondayOffset + 1
+        let possible = overview.activeActivities * daysElapsed
         guard possible > 0 else { return 0 }
-        return Double(overview.currentWeekCompletions) / Double(possible)
+        return min(1.0, Double(overview.currentWeekCompletions) / Double(possible))
     }
 
     var streakInsight: String? {

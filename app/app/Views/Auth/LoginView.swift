@@ -66,7 +66,7 @@ struct LoginView: View {
                 Spacer().frame(height: 12)
 
                 // Welcome subtitle
-                Text("Welcome to get you on track\nand grow with Progression!")
+                Text("Let's get you on track\nand grow with Progression.")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -120,6 +120,14 @@ struct LoginView: View {
                                 .font(.title2)
                             Text("Sign in with Apple")
                                 .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            Spacer().frame(width: 4)
+                            Text("Coming Soon")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Theme.Colors.textTertiary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Theme.Colors.cardBorder.opacity(0.5))
+                                .clipShape(Capsule())
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -149,10 +157,19 @@ struct LoginView: View {
                 Button {
                     // Email sign-in placeholder
                 } label: {
-                    Text("Sign in with Email")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.Colors.primary)
-                        .underline()
+                    HStack(spacing: 6) {
+                        Text("Sign in with Email")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.Colors.primary)
+                            .underline()
+                        Text("Coming Soon")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.Colors.cardBorder.opacity(0.5))
+                            .clipShape(Capsule())
+                    }
                 }
 
                 Spacer().frame(height: 50)

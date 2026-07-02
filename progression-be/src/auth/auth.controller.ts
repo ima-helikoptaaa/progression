@@ -8,7 +8,9 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  async login(@Body() body: { id_token: string }) {
-    return this.authService.login(body.id_token);
+  async login(
+    @Body() body: { id_token: string; timezone?: string },
+  ) {
+    return this.authService.login(body.id_token, body.timezone);
   }
 }

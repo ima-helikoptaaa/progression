@@ -6,6 +6,8 @@ struct SettingsView: View {
     @State private var isEditingName = false
     @State private var editedName = ""
     @State private var showOnboarding = false
+    @State private var isSavingName = false
+    @State private var nameError: String?
 
     var body: some View {
         NavigationStack {
@@ -45,12 +47,18 @@ struct SettingsView: View {
                                                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
                                             Button {
-                                                saveName()
+                                                Task { await saveName() }
                                             } label: {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .font(.title2)
-                                                    .foregroundStyle(Theme.Colors.success)
+                                                if isSavingName {
+                                                    ProgressView()
+                                                        .frame(width: 24, height: 24)
+                                                } else {
+                                                    Image(systemName: "checkmark.circle.fill")
+                                                        .font(.title2)
+                                                        .foregroundStyle(Theme.Colors.success)
+                                                }
                                             }
+                                            .disabled(isSavingName)
 
                                             Button {
                                                 isEditingName = false
@@ -79,6 +87,12 @@ struct SettingsView: View {
                                     Text(user.email)
                                         .font(.caption)
                                         .foregroundStyle(.white.opacity(0.8))
+
+                                    if let nameError {
+                                        Text(nameError)
+                                            .font(.caption)
+                                            .foregroundStyle(Theme.Colors.danger)
+                                    }
                                 }
                                 .padding(.vertical, 20)
                             }
@@ -202,15 +216,22 @@ struct SettingsView: View {
         }
     }
 
-    private func saveName() {
+    @MainActor
+    private func saveName() async {
         let trimmed = editedName.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        isEditingName = false
-        HapticManager.success()
-        Task {
-            let _ = try? await APIService.shared.updateMe(UserUpdate(displayName: trimmed))
+        isSavingName = true
+        nameError = nil
+        do {
+            _ = try await APIService.shared.updateMe(UserUpdate(displayName: trimmed))
             await authService.refreshUser()
+            isEditingName = false
+            HapticManager.success()
+        } catch {
+            nameError = error.localizedDescription
+            HapticManager.warning()
         }
+        isSavingName = false
     }
 }
 

@@ -43,12 +43,16 @@ class ActivityDetailViewModel {
     func upgrade(newTarget: Double) async {
         do {
             let body = SpendRequest(action: "upgrade", activityId: activity.id, newTarget: newTarget)
-            _ = try await api.spendPoints(body)
+            let response = try await api.spendPoints(body)
             HapticManager.success()
+            if let remaining = response.remainingPoints {
+                NotificationCenter.default.post(name: NSNotification.Name("PointsUpdated"), object: remaining)
+            }
             let activities = try await api.listActivities()
             if let updated = activities.first(where: { $0.id == activity.id }) {
                 activity = updated
             }
+            NotificationCenter.default.post(name: NSNotification.Name("ActivityChanged"), object: nil)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -60,6 +64,7 @@ class ActivityDetailViewModel {
             let updated = try await api.togglePause(activity.id)
             activity = updated
             HapticManager.impact(.medium)
+            NotificationCenter.default.post(name: NSNotification.Name("ActivityChanged"), object: nil)
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -63,11 +63,7 @@ export class StacksService {
     return this.getStackResponse(userId, stackId);
   }
 
-  async removeActivity(
-    userId: string,
-    stackId: string,
-    activityId: string,
-  ) {
+  async removeActivity(userId: string, stackId: string, activityId: string) {
     await this.getUserStack(userId, stackId);
 
     const activity = await this.prisma.activity.findFirst({
@@ -83,11 +79,7 @@ export class StacksService {
     return this.getStackResponse(userId, stackId);
   }
 
-  async reorderStack(
-    userId: string,
-    stackId: string,
-    activityIds: string[],
-  ) {
+  async reorderStack(userId: string, stackId: string, activityIds: string[]) {
     await this.getUserStack(userId, stackId);
 
     // Batch all updates in a single transaction

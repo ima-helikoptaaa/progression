@@ -15,7 +15,8 @@ export class UsersService {
     data: { displayName?: string; timezone?: string },
   ) {
     const updateData: Record<string, any> = {};
-    if (data.displayName !== undefined) updateData.displayName = data.displayName;
+    if (data.displayName !== undefined)
+      updateData.displayName = data.displayName;
     if (data.timezone !== undefined) updateData.timezone = data.timezone;
 
     return this.prisma.user.update({

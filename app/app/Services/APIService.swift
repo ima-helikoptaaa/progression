@@ -28,11 +28,7 @@ enum APIError: Error, LocalizedError {
 class APIService {
     static let shared = APIService()
 
-    #if DEBUG
     private let baseURL = "http://13.214.26.96/api/progression/api/v1"
-    #else
-    private let baseURL = "https://13.214.26.96/api/progression/api/v1"
-    #endif
 
     var authToken: String?
 
@@ -54,9 +50,15 @@ class APIService {
         body: (any Encodable)? = nil,
         queryItems: [URLQueryItem]? = nil
     ) async throws -> T {
-        var components = URLComponents(string: baseURL + path)!
-        if let queryItems { components.queryItems = queryItems }
-        var req = URLRequest(url: components.url!)
+        guard let baseURL = URL(string: baseURL + path) else {
+            throw APIError.serverError
+        }
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        if let queryItems { components?.queryItems = queryItems }
+        guard let url = components?.url else {
+            throw APIError.serverError
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let token = authToken {
@@ -96,13 +98,13 @@ class APIService {
         case 401:
             // Check if the response indicates an expired token specifically
             if let detail = try? decoder.decode(ErrorDetail.self, from: data),
-               detail.detail.lowercased().contains("expired") {
+               detail.message.lowercased().contains("expired") {
                 throw APIError.tokenExpired
             }
             throw APIError.unauthorized
         case 400:
             if let detail = try? decoder.decode(ErrorDetail.self, from: data) {
-                throw APIError.badRequest(detail.detail)
+                throw APIError.badRequest(detail.message)
             }
             throw APIError.badRequest("Bad request")
         case 404:
@@ -117,7 +119,10 @@ class APIService {
         path: String,
         body: (any Encodable)? = nil
     ) async throws {
-        var req = URLRequest(url: URL(string: baseURL + path)!)
+        guard let url = URL(string: baseURL + path) else {
+            throw APIError.serverError
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let token = authToken {
@@ -139,15 +144,25 @@ class APIService {
         } catch {
             throw APIError.networkError(error)
         }
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.serverError
+        }
+        switch http.statusCode {
+        case 200...299:
+            return
+        case 401:
+            throw APIError.unauthorized
+        case 404:
+            throw APIError.notFound
+        default:
             throw APIError.serverError
         }
     }
 
     // MARK: - Auth
-    func login(idToken: String) async throws -> UserResponse {
-        struct Body: Encodable { let idToken: String }
-        return try await request("POST", path: "/auth/login", body: Body(idToken: idToken))
+    func login(idToken: String, timezone: String? = nil) async throws -> UserResponse {
+        struct Body: Encodable { let idToken: String; let timezone: String? }
+        return try await request("POST", path: "/auth/login", body: Body(idToken: idToken, timezone: timezone))
     }
 
     // MARK: - User
@@ -258,7 +273,7 @@ class APIService {
 }
 
 private struct ErrorDetail: Decodable {
-    let detail: String
+    let message: String
 }
 
 struct SpendResponse: Codable {

@@ -154,7 +154,7 @@ struct PointsView: View {
                                                 .font(.system(size: 14, weight: .medium))
                                                 .foregroundStyle(Theme.Colors.textPrimary)
                                                 .lineLimit(1)
-                                            Text(tx.transactionType.capitalized)
+                                            Text(formattedTransactionType(tx.transactionType))
                                                 .font(.system(size: 11))
                                                 .foregroundStyle(Theme.Colors.textTertiary)
                                         }
@@ -306,21 +306,34 @@ struct PointsView: View {
 
     private func transactionIcon(_ tx: PointTransactionResponse) -> String {
         switch tx.transactionType {
-        case "milestone": return "star.fill"
+        case "fibonacci_milestone": return "star.fill"
         case "upgrade": return "arrow.up.circle.fill"
         case "welcome": return "gift.fill"
-        case "create": return "plus.circle.fill"
+        case "new_activity": return "plus.circle.fill"
+        case "daily_penalty": return "exclamationmark.triangle.fill"
         default: return "circle.fill"
         }
     }
 
     private func transactionIconColor(_ tx: PointTransactionResponse) -> Color {
         switch tx.transactionType {
-        case "milestone": return Theme.Colors.warning
+        case "fibonacci_milestone": return Theme.Colors.warning
         case "upgrade": return Theme.Colors.primary
         case "welcome": return Theme.Colors.success
-        case "create": return Theme.Colors.accent
+        case "new_activity": return Theme.Colors.accent
+        case "daily_penalty": return Theme.Colors.danger
         default: return Theme.Colors.textTertiary
+        }
+    }
+
+    private func formattedTransactionType(_ type: String) -> String {
+        switch type {
+        case "fibonacci_milestone": return "Milestone"
+        case "new_activity": return "New Activity"
+        case "daily_penalty": return "Penalty"
+        case "upgrade": return "Upgrade"
+        case "welcome": return "Welcome"
+        default: return type.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
 
