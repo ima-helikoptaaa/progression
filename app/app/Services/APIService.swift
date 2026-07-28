@@ -31,6 +31,7 @@ class APIService {
     private let baseURL = "http://13.214.26.96/api/progression"
 
     var authToken: String?
+    @ObservationIgnored var refreshHandler: (() async -> Bool)?
 
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -44,12 +45,7 @@ class APIService {
         return e
     }()
 
-    private func request<T: Decodable>(
-        _ method: String,
-        path: String,
-        body: (any Encodable)? = nil,
-        queryItems: [URLQueryItem]? = nil
-    ) async throws -> T {
+    private func buildRequest(_ method: String, path: String, body: (any Encodable)? = nil, queryItems: [URLQueryItem]? = nil) throws -> URLRequest {
         guard let baseURL = URL(string: baseURL + path) else {
             throw APIError.serverError
         }
@@ -67,7 +63,10 @@ class APIService {
         if let body {
             req.httpBody = try encoder.encode(body)
         }
+        return req
+    }
 
+    private func performRequest(_ req: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await URLSession.shared.data(for: req)
@@ -83,20 +82,17 @@ class APIService {
         } catch {
             throw APIError.networkError(error)
         }
-
         guard let http = response as? HTTPURLResponse else {
             throw APIError.serverError
         }
+        return (data, http)
+    }
 
+    private func handleStatus(_ http: HTTPURLResponse, _ data: Data) throws {
         switch http.statusCode {
         case 200...299:
-            do {
-                return try decoder.decode(T.self, from: data)
-            } catch {
-                throw APIError.decodingError(error)
-            }
+            return
         case 401:
-            // Check if the response indicates an expired token specifically
             if let detail = try? decoder.decode(ErrorDetail.self, from: data),
                detail.message.lowercased().contains("expired") {
                 throw APIError.tokenExpired
@@ -114,39 +110,55 @@ class APIService {
         }
     }
 
+    private func request<T: Decodable>(
+        _ method: String,
+        path: String,
+        body: (any Encodable)? = nil,
+        queryItems: [URLQueryItem]? = nil
+    ) async throws -> T {
+        var req = try buildRequest(method, path: path, body: body, queryItems: queryItems)
+
+        var (data, http) = try await performRequest(req)
+
+        // Auto-refresh on token expired
+        if http.statusCode == 401 {
+            if let detail = try? decoder.decode(ErrorDetail.self, from: data),
+               detail.message.lowercased().contains("expired"),
+               let refresh = refreshHandler,
+               await refresh() {
+                req = try buildRequest(method, path: path, body: body, queryItems: queryItems)
+                (data, http) = try await performRequest(req)
+            }
+        }
+
+        try handleStatus(http, data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
     private func requestNoContent(
         _ method: String,
         path: String,
         body: (any Encodable)? = nil
     ) async throws {
-        guard let url = URL(string: baseURL + path) else {
-            throw APIError.serverError
-        }
-        var req = URLRequest(url: url)
-        req.httpMethod = method
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = authToken {
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        if let body {
-            req.httpBody = try encoder.encode(body)
-        }
-        let (_, response): (Data, URLResponse)
-        do {
-            (_, response) = try await URLSession.shared.data(for: req)
-        } catch let urlError as URLError {
-            switch urlError.code {
-            case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed:
-                throw APIError.offline
-            default:
-                throw APIError.networkError(urlError)
+        var req = try buildRequest(method, path: path, body: body)
+
+        var (data, http) = try await performRequest(req)
+
+        // Auto-refresh on token expired
+        if http.statusCode == 401 {
+            if let detail = try? decoder.decode(ErrorDetail.self, from: data),
+               detail.message.lowercased().contains("expired"),
+               let refresh = refreshHandler,
+               await refresh() {
+                req = try buildRequest(method, path: path, body: body)
+                (data, http) = try await performRequest(req)
             }
-        } catch {
-            throw APIError.networkError(error)
         }
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.serverError
-        }
+
         switch http.statusCode {
         case 200...299:
             return

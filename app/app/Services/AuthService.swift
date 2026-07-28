@@ -18,6 +18,9 @@ class AuthService {
             authState = .unauthenticated
             return
         }
+        api.refreshHandler = { [weak self] in
+            await self?.refreshToken() ?? false
+        }
         if let token = KeychainHelper.read(key: tokenKey) {
             api.authToken = token
             Task { await restoreSession() }
